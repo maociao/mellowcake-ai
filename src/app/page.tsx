@@ -5,9 +5,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 interface Character {
-  filename: string;
+  id: number;
   name: string;
-  avatarUrl: string;
+  avatarPath: string;
 }
 
 export default function Home() {
@@ -39,7 +39,7 @@ export default function Home() {
     <main className="p-4 pb-20">
       <header className="mb-6 flex justify-between items-center">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
-          SillyTavern Mobile
+          Mellowcake AI
         </h1>
         {/* Settings Icon could go here */}
       </header>
@@ -47,16 +47,17 @@ export default function Home() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {characters.map((char) => (
           <Link
-            href={`/chat/${char.filename}`}
-            key={char.filename}
+            href={`/chat/${char.id}`}
+            key={char.id}
             className="group relative block aspect-[3/4] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-transform hover:scale-105"
           >
             <Image
-              src={char.avatarUrl}
+              src={char.avatarPath || '/placeholder.png'}
               alt={char.name}
               fill
               className="object-cover transition-opacity group-hover:opacity-80"
               sizes="(max-width: 768px) 50vw, 33vw"
+              unoptimized
             />
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-10">
               <h2 className="text-white font-semibold text-sm truncate">
