@@ -17,7 +17,14 @@ interface CharacterDetails {
     name: string;
     avatarUrl: string;
     first_mes?: string;
-    selected_lorebooks?: string[]; // Add this field
+    selected_lorebooks?: string[];
+    selected_persona?: string; // Add this field
+}
+
+interface Persona {
+    filename: string;
+    name: string;
+    avatarUrl?: string;
 }
 
 interface Lorebook {
@@ -42,6 +49,8 @@ export default function ChatPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([]);
     const [selectedLorebooks, setSelectedLorebooks] = useState<string[]>([]);
+    const [personas, setPersonas] = useState<Persona[]>([]);
+    const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
 
     // Session State
@@ -62,7 +71,8 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionFilename: currentSession,
-                    messages: updatedMessages
+                    messages: updatedMessages,
+                    personaFilename: selectedPersona
                 })
             });
         } catch (e) {
@@ -194,9 +204,10 @@ export default function ChatPage() {
 
         const loadData = async () => {
             try {
-                const [charRes, loreRes, sessionsRes] = await Promise.all([
+                const [charRes, loreRes, personasRes, sessionsRes] = await Promise.all([
                     fetch(`/api/characters/${filename}`),
                     fetch('/api/lorebooks'),
+                    fetch('/api/personas'),
                     fetch(`/api/chat/${filename}/sessions`)
                 ]);
 
@@ -207,6 +218,11 @@ export default function ChatPage() {
                     // Load saved lorebooks
                     if (charData.selected_lorebooks) {
                         setSelectedLorebooks(charData.selected_lorebooks);
+                    }
+
+                    // Load saved persona
+                    if (charData.selected_persona) {
+                        setSelectedPersona(charData.selected_persona);
                     }
 
                     // Handle Sessions
@@ -230,10 +246,16 @@ export default function ChatPage() {
                     setLorebooks(loreData);
                 }
 
+                if (personasRes.ok) {
+                    const personasData = await personasRes.json();
+                    setPersonas(personasData);
+                }
+
             } catch (err) {
                 console.error('Failed to load data:', err);
             }
         };
+
 
         loadData();
     }, [filename]);
@@ -312,6 +334,90 @@ export default function ChatPage() {
         }
     };
 
+    const handlePersonaChange = async (personaFilename: string) => {
+        setSelectedPersona(personaFilename);
+        // Save settings
+        try {
+            await fetch(`/api/characters/${filename}/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    selected_lorebooks: selectedLorebooks,
+                    selected_persona: personaFilename
+                })
+            });
+        } catch (e) {
+            console.error('Failed to save settings', e);
+        }
+    }
+
+
+
+    // Gesture State
+    const touchStartRef = useRef<{ x: number, y: number, time: number } | null>(null);
+    const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleTouchStart = (index: number, e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+
+        // Long Press for Log
+        const msg = messages[index];
+        if (msg.role === 'assistant' && msg.prompt) {
+            longPressTimerRef.current = setTimeout(() => {
+                setViewingPrompt(msg.prompt!);
+                touchStartRef.current = null; // Cancel swipe if long press triggered
+            }, 500);
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        // If moved significantly, cancel long press
+        if (touchStartRef.current) {
+            const touch = e.touches[0];
+            const diffX = Math.abs(touch.clientX - touchStartRef.current.x);
+            const diffY = Math.abs(touch.clientY - touchStartRef.current.y);
+            if (diffX > 10 || diffY > 10) {
+                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = null;
+            }
+        }
+    };
+
+    const handleTouchEnd = (index: number, e: React.TouchEvent) => {
+        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+
+        if (!touchStartRef.current) return;
+
+        const touch = e.changedTouches[0];
+        const diffX = touch.clientX - touchStartRef.current.x;
+        const diffY = touch.clientY - touchStartRef.current.y;
+        const timeDiff = Date.now() - touchStartRef.current.time;
+
+        // Relaxed thresholds for better responsiveness
+        // diffX > 30 (was 50), diffY < 100 (was 30), timeDiff < 500
+        if (Math.abs(diffX) > 30 && Math.abs(diffY) < 100 && timeDiff < 500) {
+            const msg = messages[index];
+            if (msg.role === 'assistant') {
+                if (diffX < 0) {
+                    // Swipe Left
+                    if (msg.swipes && (msg.swipe_id || 0) < msg.swipes.length - 1) {
+                        handleSwipe(index, 'right'); // Next swipe (visual right is logical next)
+                    } else if (index === messages.length - 1) {
+                        // Last message and last swipe -> Regenerate
+                        handleRegenerate(index);
+                    }
+                } else {
+                    // Swipe Right
+                    if (msg.swipes && (msg.swipe_id || 0) > 0) {
+                        handleSwipe(index, 'left'); // Previous swipe
+                    }
+                }
+            }
+        }
+        touchStartRef.current = null;
+    };
+
     // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -333,6 +439,7 @@ export default function ChatPage() {
                     messages: [...messages, userMessage],
                     characterFilename: filename,
                     lorebookFilenames: selectedLorebooks,
+                    personaFilename: selectedPersona,
                     sessionFilename: currentSession, // Pass current session
                 }),
             });
@@ -482,7 +589,8 @@ export default function ChatPage() {
                                 </svg>
                             </button>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 mb-6">
+                            <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2">Lorebooks</h3>
                             {lorebooks.map(lb => (
                                 <label key={lb.filename} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
                                     <input
@@ -495,6 +603,27 @@ export default function ChatPage() {
                                 </label>
                             ))}
                             {lorebooks.length === 0 && <p className="text-gray-500">No lorebooks found.</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2">Persona</h3>
+                            {personas.map(p => (
+                                <button
+                                    key={p.filename}
+                                    onClick={() => handlePersonaChange(p.filename)}
+                                    className={`w-full text-left p-2 rounded flex items-center space-x-3 ${selectedPersona === p.filename ? 'bg-blue-900/40 text-blue-100' : 'hover:bg-gray-700'}`}
+                                >
+                                    <div className="w-8 h-8 rounded-full overflow-hidden relative bg-gray-600 flex-shrink-0">
+                                        {p.avatarUrl ? (
+                                            <Image src={p.avatarUrl} alt={p.name} fill className="object-cover" />
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full text-xs">{p.name[0]}</div>
+                                        )}
+                                    </div>
+                                    <span className="truncate">{p.name}</span>
+                                </button>
+                            ))}
+                            {personas.length === 0 && <p className="text-gray-500">No personas found.</p>}
                         </div>
                     </div>
                 </div>
@@ -523,15 +652,25 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl px-4 py-2 relative group ${msg.role === 'user'
-                            ? 'bg-blue-600 text-white rounded-br-none'
-                            : 'bg-gray-700 text-gray-100 rounded-bl-none'
-                            }`}>
-                            <div className="whitespace-pre-wrap text-sm md:text-base">
+                        <div
+                            key={`${idx}-${msg.swipe_id}`} // Trigger animation on swipe change
+                            className={`max-w-[85%] rounded-2xl px-4 py-2 relative group animate-slide-in ${msg.role === 'user'
+                                ? 'bg-blue-600 text-white rounded-br-none'
+                                : 'bg-gray-700 text-gray-100 rounded-bl-none'
+                                }`}
+                            onTouchStart={(e) => handleTouchStart(idx, e)}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={(e) => handleTouchEnd(idx, e)}
+                        >
+                            <div className="whitespace-pre-wrap text-sm md:text-base select-none">
                                 {msg.content}
+                                {msg.role === 'assistant' && isLoading && idx === messages.length - 1 && (!msg.content || msg.content.length === 0) && (
+                                    <span className="text-gray-400 italic loading-dots block">Regenerating</span>
+                                )}
                             </div>
                             {msg.role === 'assistant' && (
-                                <div className="absolute -bottom-6 left-0 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute -bottom-6 left-0 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
+                                    {/* Swipe Controls (Desktop Hover Only) */}
                                     {/* Swipe Controls */}
                                     <div className="flex items-center space-x-1 text-gray-500">
                                         <button
@@ -557,16 +696,18 @@ export default function ChatPage() {
                                         </button>
                                     </div>
 
-                                    {/* Regenerate */}
-                                    <button
-                                        onClick={() => handleRegenerate(idx)}
-                                        className="text-gray-500 hover:text-white"
-                                        title="Regenerate"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                        </svg>
-                                    </button>
+                                    {/* Regenerate - Only for last message */}
+                                    {idx === messages.length - 1 && (
+                                        <button
+                                            onClick={() => handleRegenerate(idx)}
+                                            className="text-gray-500 hover:text-white"
+                                            title="Regenerate"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                            </svg>
+                                        </button>
+                                    )}
 
                                     {/* Log */}
                                     {msg.prompt && (

@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CONFIG } from '@/config';
-import { getCharacterDetails } from '@/lib/sillytavern';
+import { getCharacterDetails, getPersonas, getGenerationSettings } from '@/lib/sillytavern';
 import { scanLorebooks } from '@/lib/lorebook';
 import { appendChatMessage, listChatSessions, createChatSession } from '@/lib/chat-history';
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        let { messages, characterFilename, lorebookFilenames, userName = 'User', sessionFilename, save = true } = body;
+        let { messages, characterFilename, lorebookFilenames, personaFilename, userName = 'User', sessionFilename, save = true } = body;
+
+        let personaDescription = '';
+        if (personaFilename) {
+            const personas = await getPersonas();
+            const persona = personas.find(p => p.filename === personaFilename);
+            if (persona) {
+                userName = persona.name;
+                personaDescription = persona.description || '';
+            }
+        }
 
         if (!messages || !characterFilename) {
             return new NextResponse('Missing messages or characterFilename', { status: 400 });
@@ -30,7 +40,7 @@ export async function POST(req: NextRequest) {
             }
 
             if (targetSession) {
-                await appendChatMessage(characterFilename, targetSession, lastMessage);
+                await appendChatMessage(characterFilename, targetSession, lastMessage, undefined, userName);
             }
         }
 
@@ -58,6 +68,10 @@ export async function POST(req: NextRequest) {
             systemPrompt += `\n[Example Dialogue]\n${character.mes_example}\n`;
         }
 
+        if (personaDescription) {
+            systemPrompt += `\n[User Persona]\n${personaDescription}\n`;
+        }
+
         // Replace macros
         systemPrompt = systemPrompt.replace(/{{char}}/g, character.name);
         systemPrompt = systemPrompt.replace(/{{user}}/g, userName);
@@ -69,6 +83,7 @@ export async function POST(req: NextRequest) {
         ];
 
         // 4. Call Ollama
+        const settings = getGenerationSettings();
         const response = await fetch(`${CONFIG.OLLAMA_URL}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -76,6 +91,13 @@ export async function POST(req: NextRequest) {
                 model: 'fluffy/l3-8b-stheno-v3.2:latest', // Updated to available RP model
                 messages: ollamaMessages,
                 stream: true,
+                options: {
+                    num_predict: settings.max_length, // Ollama uses num_predict for max tokens
+                    temperature: settings.temperature,
+                    top_p: settings.top_p,
+                    top_k: settings.top_k,
+                    repeat_penalty: settings.rep_pen,
+                }
             }),
         });
 
@@ -134,7 +156,7 @@ export async function POST(req: NextRequest) {
                     }
 
                     if (targetSession) {
-                        await appendChatMessage(characterFilename, targetSession, { role: 'assistant', content: assistantMessage }, systemPrompt);
+                        await appendChatMessage(characterFilename, targetSession, { role: 'assistant', content: assistantMessage }, systemPrompt, userName);
                     }
                 }
             },

@@ -19,12 +19,12 @@ export async function PUT(
 ) {
     const filename = (await params).filename;
     const body = await request.json();
-    const { sessionFilename, messages } = body;
+    const { sessionFilename, messages, personaFilename } = body;
 
     if (!sessionFilename || !messages) {
         return new NextResponse('Missing sessionFilename or messages', { status: 400 });
     }
 
-    await saveChatSession(filename, sessionFilename, messages);
+    await saveChatSession(filename, sessionFilename, messages, personaFilename);
     return new NextResponse('History saved', { status: 200 });
 }

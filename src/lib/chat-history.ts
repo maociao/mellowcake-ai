@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { CONFIG } from '@/config';
-import { getCharacterDetails } from './sillytavern';
+import { getCharacterDetails, getPersonas } from './sillytavern';
 
 const CHATS_DIR = path.join(CONFIG.SILLYTAVERN_PATH, 'data', 'default-user', 'chats');
 
@@ -19,7 +19,7 @@ export interface ChatMessage {
 
 // ... (existing code)
 
-export async function saveChatSession(characterFilename: string, sessionFilename: string, messages: any[]) {
+export async function saveChatSession(characterFilename: string, sessionFilename: string, messages: any[], personaFilename?: string) {
     const charChatDir = getChatDir(characterFilename);
     if (!charChatDir) return;
 
@@ -48,11 +48,22 @@ export async function saveChatSession(characterFilename: string, sessionFilename
         metadataLine = JSON.stringify(metadata);
     }
 
+    // Get Persona Name
+    let userName = 'User';
+    if (personaFilename) {
+        const personas = await getPersonas();
+        const persona = personas.find(p => p.filename === personaFilename);
+        if (persona) userName = persona.name;
+    }
+
+    const charDetails = getCharacterDetails(characterFilename);
+    const charName = charDetails?.name || 'Char';
+
     // Convert internal messages back to ST format
     const stMessages = messages.map(msg => {
         const isUser = msg.role === 'user';
         return {
-            name: isUser ? 'User' : 'Char', // Ideally we get real name
+            name: isUser ? userName : charName,
             is_user: isUser,
             is_name: true,
             send_date: new Date().toLocaleString(), // We lose original date if we don't store it. 
@@ -167,7 +178,7 @@ export async function createChatSession(characterFilename: string): Promise<stri
     return filename;
 }
 
-export async function appendChatMessage(characterFilename: string, sessionFilename: string, message: any, prompt?: string) {
+export async function appendChatMessage(characterFilename: string, sessionFilename: string, message: any, prompt?: string, userName: string = 'User') {
     const charChatDir = getChatDir(characterFilename);
     if (!charChatDir) return;
 
@@ -176,7 +187,7 @@ export async function appendChatMessage(characterFilename: string, sessionFilena
 
     // ST Message Format
     const stMessage = {
-        name: message.role === 'user' ? 'User' : 'Char', // We need char name but it's not passed here easily without fetch. 
+        name: message.role === 'user' ? userName : 'Char', // We need char name but it's not passed here easily without fetch. 
         // Actually we can just use 'Char' or get it from dir name? 
         // Let's re-fetch details or assume caller passes valid session.
         // For simplicity, let's just use what we have.

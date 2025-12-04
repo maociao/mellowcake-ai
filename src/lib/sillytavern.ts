@@ -62,6 +62,81 @@ export async function getLorebooks(): Promise<Lorebook[]> {
     return lorebooks;
 }
 
+const PERSONAS_DIR = path.join(CONFIG.SILLYTAVERN_PATH, 'data', 'default-user', 'User Avatars');
+
+export interface Persona {
+    filename: string;
+    name: string;
+    avatarUrl?: string;
+    description?: string;
+}
+
+export async function getPersonas(): Promise<Persona[]> {
+    if (!fs.existsSync(PERSONAS_DIR)) {
+        console.warn(`Personas directory not found: ${PERSONAS_DIR}`);
+        return [];
+    }
+
+    // Read settings.json for names and descriptions
+    const settingsPath = path.join(CONFIG.SILLYTAVERN_PATH, 'data', 'default-user', 'settings.json');
+    let personaNames: Record<string, string> = {};
+    let personaDescriptions: Record<string, { description: string }> = {};
+
+    if (fs.existsSync(settingsPath)) {
+        try {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+            const powerUser = settings.power_user || {};
+            personaNames = powerUser.personas || {};
+            personaDescriptions = powerUser.persona_descriptions || {};
+        } catch (e) {
+            console.error('Error reading settings.json:', e);
+        }
+    } else {
+        console.warn('settings.json not found at', settingsPath);
+    }
+
+    const files = fs.readdirSync(PERSONAS_DIR);
+    const personas = files
+        .filter(file => file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg') || file.endsWith('.webp'))
+        .map(file => {
+            // 1. Get Name
+            let name = personaNames[file];
+            if (!name) {
+                // Fallback to filename parsing
+                name = file.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+                const timestampMatch = name.match(/^\d+-(.+)$/);
+                if (timestampMatch) {
+                    name = timestampMatch[1];
+                }
+                // Fallback for default user if not in settings (though it should be)
+                if (name === 'user-default') name = 'Matt';
+            }
+
+            // 2. Get Description
+            let description = '';
+            if (personaDescriptions[file]?.description) {
+                description = personaDescriptions[file].description;
+            }
+
+            return {
+                filename: file,
+                name: name,
+                description: description,
+                avatarUrl: `/api/personas/${file}/image`
+            };
+        });
+
+    return personas;
+}
+
+export function getPersonaImagePath(filename: string): string | null {
+    const filePath = path.join(PERSONAS_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        return filePath;
+    }
+    return null;
+}
+
 export function getCharacterImagePath(filename: string): string | null {
     const filePath = path.join(CHARACTERS_DIR, filename);
     if (fs.existsSync(filePath)) {
@@ -172,3 +247,32 @@ function extractPngMetadata(buffer: Buffer): any | null {
     return null;
 }
 
+
+export interface GenerationSettings {
+    max_length?: number;
+    temperature?: number;
+    top_p?: number;
+    top_k?: number;
+    rep_pen?: number;
+}
+
+export function getGenerationSettings(): GenerationSettings {
+    const settingsPath = path.join(CONFIG.SILLYTAVERN_PATH, 'data', 'default-user', 'settings.json');
+    if (!fs.existsSync(settingsPath)) return {};
+
+    try {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        const tgSettings = settings.textgenerationwebui_settings || {};
+
+        return {
+            max_length: settings.amount_gen,
+            temperature: tgSettings.temp,
+            top_p: tgSettings.top_p,
+            top_k: tgSettings.top_k,
+            rep_pen: tgSettings.rep_pen,
+        };
+    } catch (e) {
+        console.error('Error reading settings for generation:', e);
+        return {};
+    }
+}
