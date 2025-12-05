@@ -5,12 +5,24 @@ import fs from 'fs';
 import path from 'path';
 
 export const chatService = {
-    async createSession(characterId: number, personaId?: number, name?: string) {
+    async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[]) {
         return await db.insert(chatSessions).values({
             characterId,
             personaId,
             name,
+            lorebooks: lorebooks ? JSON.stringify(lorebooks) : undefined,
         }).returning();
+    },
+
+    async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[] }) {
+        const updateData: any = { ...data, updatedAt: new Date().toISOString() };
+        if (data.lorebooks) {
+            updateData.lorebooks = JSON.stringify(data.lorebooks);
+        }
+        return await db.update(chatSessions)
+            .set(updateData)
+            .where(eq(chatSessions.id, id))
+            .returning();
     },
 
     async getSessionById(id: number) {

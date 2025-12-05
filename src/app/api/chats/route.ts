@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatService } from '@/services/chat-service';
+import { characterService } from '@/services/character-service';
 
 export async function GET(request: NextRequest) {
     try {
@@ -27,7 +28,19 @@ export async function POST(request: NextRequest) {
             return new NextResponse('Missing characterId', { status: 400 });
         }
 
-        const session = await chatService.createSession(characterId, personaId, name);
+        // Get character to check for default lorebooks
+        const character = await characterService.getById(characterId);
+        let defaultLorebooks: string[] | undefined;
+
+        if (character && character.lorebooks) {
+            try {
+                defaultLorebooks = JSON.parse(character.lorebooks);
+            } catch (e) {
+                console.error('Error parsing character default lorebooks:', e);
+            }
+        }
+
+        const session = await chatService.createSession(characterId, personaId, name, defaultLorebooks);
         return NextResponse.json(session[0], { status: 201 });
     } catch (error) {
         console.error('Error creating session:', error);

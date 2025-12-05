@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { personaService } from '@/services/persona-service';
+import { lorebookService } from '@/services/lorebook-service';
 
 export async function GET(
     request: NextRequest,
@@ -9,12 +9,12 @@ export async function GET(
         const id = parseInt((await params).id);
         if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
 
-        const persona = await personaService.getById(id);
-        if (!persona) return new NextResponse('Persona not found', { status: 404 });
+        const lorebook = await lorebookService.getById(id);
+        if (!lorebook) return new NextResponse('Lorebook not found', { status: 404 });
 
-        return NextResponse.json(persona);
+        return NextResponse.json(lorebook);
     } catch (error) {
-        console.error('Error fetching persona:', error);
+        console.error('Error fetching lorebook:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -28,10 +28,10 @@ export async function PUT(
         if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
 
         const body = await request.json();
-        const updated = await personaService.update(id, body);
-        return NextResponse.json(updated);
+        const updatedLorebook = await lorebookService.update(id, body);
+        return NextResponse.json(updatedLorebook);
     } catch (error) {
-        console.error('Error updating persona:', error);
+        console.error('Error updating lorebook:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -44,27 +44,10 @@ export async function DELETE(
         const id = parseInt((await params).id);
         if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
 
-        await personaService.delete(id);
+        await lorebookService.delete(id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting persona:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
-    }
-}
-
-export async function PATCH(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const id = parseInt((await params).id);
-        if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
-
-        const body = await request.json();
-        const updatedPersona = await personaService.update(id, body);
-        return NextResponse.json(updatedPersona);
-    } catch (error) {
-        console.error('Error updating persona:', error);
+        console.error('Error deleting lorebook:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

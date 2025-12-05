@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, relations } from 'drizzle-orm';
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 
 export const characters = sqliteTable('characters', {
@@ -10,6 +10,7 @@ export const characters = sqliteTable('characters', {
     personality: text('personality'),
     scenario: text('scenario'),
     systemPrompt: text('system_prompt'),
+    lorebooks: text('lorebooks'), // JSON string array of names
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -28,6 +29,7 @@ export const chatSessions = sqliteTable('chat_sessions', {
     characterId: integer('character_id').references(() => characters.id).notNull(),
     personaId: integer('persona_id').references(() => personas.id),
     name: text('name'), // Optional custom name for the chat
+    lorebooks: text('lorebooks'), // JSON string array of names (overrides character default)
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -55,3 +57,34 @@ export const settings = sqliteTable('settings', {
     key: text('key').primaryKey(),
     value: text('value').notNull(), // JSON string
 });
+
+export const lorebooks = sqliteTable('lorebooks', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    description: text('description'),
+    content: text('content'), // Deprecated, but needed for migration
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const lorebookEntries = sqliteTable('lorebook_entries', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    lorebookId: integer('lorebook_id').references(() => lorebooks.id, { onDelete: 'cascade' }).notNull(),
+    label: text('label'), // from 'comment'
+    content: text('content').notNull(),
+    keywords: text('keywords'), // JSON string array
+    enabled: integer('enabled', { mode: 'boolean' }).default(true),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const lorebooksRelations = relations(lorebooks, ({ many }) => ({
+    entries: many(lorebookEntries),
+}));
+
+export const lorebookEntriesRelations = relations(lorebookEntries, ({ one }) => ({
+    lorebook: one(lorebooks, {
+        fields: [lorebookEntries.lorebookId],
+        references: [lorebooks.id],
+    }),
+}));

@@ -5,6 +5,7 @@ import { personaService } from '@/services/persona-service';
 import { llmService } from '@/services/llm-service';
 import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
+import { lorebookService } from '@/services/lorebook-service';
 
 export async function POST(request: NextRequest) {
     try {
@@ -42,17 +43,20 @@ export async function POST(request: NextRequest) {
         const memories = await memoryService.searchMemories(character.id, content);
         console.log(`[Chat API] Found ${memories.length} relevant memories`);
 
-        // TODO: Fetch specific lorebooks if provided
-        // For now, we'll just pass the names to contextManager if it supports it, 
-        // or we need to fetch the content. 
-        // Since we don't have a DB table for Lorebooks yet (using ST file reader), 
-        // we might need a service to get their content.
-        // Let's assume contextManager can handle raw text or we fetch it here.
-        // For MVP, let's skip actual Lorebook content injection unless we implement a service for it.
-        // But we MUST build the prompt to save it.
+        // Scan Lorebooks
+        let lorebookContent: { content: string; createdAt: string }[] = [];
+        if (lorebooks && lorebooks.length > 0) {
+            // Scan last 5 messages + current message
+            const recentHistory = history.slice(-5).map(m => m.content).join('\n');
+            const scanText = `${recentHistory}\n${content}`;
+
+            console.log(`[Chat API] Scanning lorebooks: ${lorebooks.join(', ')} (History depth: 5)`);
+            lorebookContent = await lorebookService.scan(scanText, lorebooks);
+            console.log(`[Chat API] Found ${lorebookContent.length} lorebook matches`);
+        }
 
         // Use the new Llama 3 prompt builder
-        const rawPrompt = contextManager.buildLlama3Prompt(character, persona, history, memories);
+        const rawPrompt = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent);
         console.log(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
 
         // Capture the prompt for debugging

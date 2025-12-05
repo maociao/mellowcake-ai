@@ -51,12 +51,20 @@ export const characterService = {
         return result[0] || null;
     },
 
-    async create(data: typeof characters.$inferInsert) {
-        return await db.insert(characters).values(data).returning();
+    async create(data: typeof characters.$inferInsert & { lorebooks?: string[] }) {
+        const insertData: any = { ...data };
+        if (data.lorebooks) {
+            insertData.lorebooks = JSON.stringify(data.lorebooks);
+        }
+        return await db.insert(characters).values(insertData).returning();
     },
 
-    async update(id: number, data: Partial<typeof characters.$inferInsert>) {
-        return await db.update(characters).set(data).where(eq(characters.id, id)).returning();
+    async update(id: number, data: Partial<typeof characters.$inferInsert> & { lorebooks?: string[] }) {
+        const updateData: any = { ...data };
+        if (data.lorebooks) {
+            updateData.lorebooks = JSON.stringify(data.lorebooks);
+        }
+        return await db.update(characters).set(updateData).where(eq(characters.id, id)).returning();
     },
 
     async delete(id: number) {

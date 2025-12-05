@@ -36,3 +36,20 @@ export async function DELETE(
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
+
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const id = parseInt((await params).id);
+        if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
+
+        const body = await request.json();
+        const updatedSession = await chatService.updateSession(id, body);
+        return NextResponse.json(updatedSession);
+    } catch (error) {
+        console.error('Error updating session:', error);
+        return new NextResponse('Internal Server Error', { status: 500 });
+    }
+}
