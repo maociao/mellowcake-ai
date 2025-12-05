@@ -62,8 +62,16 @@ export const memoryService = {
     async generateMemoryFromChat(characterId: number, chatHistory: { role: string, content: string }[]) {
         // Use LLM to summarize and extract memory
         const text = chatHistory.map(m => `${m.role}: ${m.content}`).join('\n');
-        const prompt = `Analyze the following chat history and extract a concise memory or fact about the user or the interaction that should be remembered for future context. If nothing important happened, return "NONE".
+        const prompt = `Analyze the following chat history and extract a concise memory or fact about the user or the interaction that should be remembered for future context.
         
+Rules:
+1. Only extract FACTS that are explicitly stated or demonstrated in the conversation.
+2. Do NOT infer feelings or thoughts unless explicitly stated.
+3. Do NOT make up events that did not happen in the text.
+4. If the user mentions a preference (e.g., "I like apples"), record it.
+5. If a significant event occurs (e.g., "User found a key"), record it.
+6. If nothing important happened, return "NONE".
+
 Chat History:
 ${text}
 

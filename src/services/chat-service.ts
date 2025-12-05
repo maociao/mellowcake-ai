@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schema';
+import { llmService } from './llm-service';
 import { eq, desc, asc, gte, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
@@ -116,5 +117,44 @@ export const chatService = {
             ));
 
         return true;
+    },
+
+    async updateSummary(sessionId: number, summary: string) {
+        return await db.update(chatSessions)
+            .set({ summary, updatedAt: new Date().toISOString() })
+            .where(eq(chatSessions.id, sessionId));
+    },
+
+    async summarizeHistory(sessionId: number, messagesToSummarize: { role: string, content: string, name?: string | null }[]) {
+        if (messagesToSummarize.length === 0) return null;
+
+        const text = messagesToSummarize.map(m => `${m.name || m.role}: ${m.content}`).join('\n');
+        const prompt = `Summarize the following chat history into a concise narrative paragraph (3-5 sentences) that captures the key events and information. Maintain the style and tone of the story.
+        
+Chat History:
+${text}
+
+Summary:`;
+
+        // Use default model
+        const models = await llmService.getModels();
+        const model = models.length > 0 ? models[0].name : 'llama3:latest';
+
+        const summary = await llmService.chat(model, [{ role: 'user', content: prompt }]);
+        return summary;
+    },
+
+    async deleteMessages(ids: number[]) {
+        if (ids.length === 0) return;
+        // Drizzle doesn't support 'inArray' easily with delete without importing 'inArray' helper
+        // Let's import 'inArray' or just loop for now if small, but 'inArray' is better.
+        // I need to check imports.
+        // Actually, let's just use a raw loop or try to import inArray in next step if needed.
+        // Wait, I can import inArray at the top of the file.
+        // But I am in a replace_file_content block.
+        // I'll just use a loop for safety for now as it's only 10 items.
+        for (const id of ids) {
+            await db.delete(chatMessages).where(eq(chatMessages.id, id));
+        }
     }
 };

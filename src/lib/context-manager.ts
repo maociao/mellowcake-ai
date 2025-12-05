@@ -81,7 +81,8 @@ export const contextManager = {
         persona: DBPersona | null,
         history: DBMessage[],
         relevantMemories: DBMemory[] = [],
-        lorebookContent: { content: string; createdAt: string }[] = []
+        lorebookContent: { content: string; createdAt: string }[] = [],
+        summary: string | null = null
     ) {
         const charName = character.name;
         const userName = persona?.name || 'User';
@@ -158,6 +159,11 @@ export const contextManager = {
         let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
 
         // --- History ---
+        // Inject Summary if exists
+        if (summary) {
+            prompt += `<|start_header_id|>system<|end_header_id|>\n[The Story So Far]\n${summary}<|eot_id|>`;
+        }
+
         // Handle first message
         if (history.length === 0 && character.firstMessage) {
             prompt += `<|start_header_id|>assistant<|end_header_id|>\n${replaceVariables(character.firstMessage)}<|eot_id|>`;
@@ -180,6 +186,31 @@ export const contextManager = {
         // --- Assistant Prime ---
         prompt += `<|start_header_id|>assistant<|end_header_id|>\n`;
 
-        return prompt;
+        // Calculate breakdown (approximate by character count)
+        const memorySize = relevantMemories.reduce((acc, m) => acc + m.content.length, 0);
+        const lorebookSize = lorebookContent.reduce((acc, l) => acc + l.content.length, 0);
+        const summarySize = summary ? summary.length : 0;
+        const historySize = history.reduce((acc, m) => acc + m.content.length, 0);
+
+        // System size is total minus everything else (approx, to account for headers/formatting)
+        // Or better: System is the base system content minus the parts we know are memories/lorebooks
+        // But since we joined them, it's hard to know exact formatting overhead.
+        // Let's rely on the fact that total = prompt.length.
+        // And we want the sum of parts to equal total.
+        // So System = Total - Memories - Lorebook - Summary - History.
+        // This effectively makes "System" the "Everything Else" bucket (headers, system prompt, formatting).
+        const totalSize = prompt.length;
+        const systemSize = totalSize - memorySize - lorebookSize - summarySize - historySize;
+
+        const breakdown = {
+            system: Math.max(0, systemSize), // Ensure non-negative
+            memories: memorySize,
+            lorebook: lorebookSize,
+            history: historySize,
+            summary: summarySize,
+            total: totalSize
+        };
+
+        return { prompt, breakdown };
     }
 };

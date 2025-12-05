@@ -843,21 +843,73 @@ export default function ChatPage() {
                 </div>
             )}
 
-            {/* Prompt View Modal */}
+            {/* Prompt Viewer Modal */}
             {viewingPrompt && (
                 <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-2xl p-6 max-h-[80vh] flex flex-col">
+                    <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Raw Prompt</h2>
-                            <button onClick={() => setViewingPrompt(null)} className="text-gray-400 hover:text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
+                            <h2 className="text-xl font-bold">Prompt Log</h2>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const content = JSON.parse(viewingPrompt).prompt || viewingPrompt;
+                                        navigator.clipboard.writeText(content);
+                                    }}
+                                    className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
+                                >
+                                    Copy
+                                </button>
+                                <button onClick={() => setViewingPrompt(null)} className="text-gray-400 hover:text-white">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                        <pre className="flex-1 overflow-auto bg-gray-900 p-4 rounded text-xs md:text-sm font-mono whitespace-pre-wrap text-gray-300">
-                            {viewingPrompt}
-                        </pre>
+
+                        {(() => {
+                            let content = viewingPrompt;
+                            let stats = null;
+                            try {
+                                const parsed = JSON.parse(viewingPrompt);
+                                if (parsed.breakdown) {
+                                    content = parsed.prompt;
+                                    stats = parsed;
+                                }
+                            } catch (e) {
+                                // Not JSON, legacy format
+                            }
+
+                            return (
+                                <>
+                                    {stats && (
+                                        <div className="mb-4 bg-gray-900 p-4 rounded-lg space-y-3">
+                                            <div className="flex justify-between text-sm text-gray-400 mb-1">
+                                                <span>Context Usage (Est. Tokens)</span>
+                                                <span>{Math.round(stats.breakdown.total / 4)} / {stats.contextLimit} tokens ({stats.breakdown.total} chars)</span>
+                                            </div>
+                                            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden flex">
+                                                <div style={{ width: `${(stats.breakdown.system / 4 / stats.contextLimit) * 100}%` }} className="bg-red-500 h-full" title={`System: ${Math.round(stats.breakdown.system / 4)} tokens`} />
+                                                <div style={{ width: `${(stats.breakdown.memories / 4 / stats.contextLimit) * 100}%` }} className="bg-yellow-500 h-full" title={`Memories: ${Math.round(stats.breakdown.memories / 4)} tokens`} />
+                                                <div style={{ width: `${(stats.breakdown.lorebook / 4 / stats.contextLimit) * 100}%` }} className="bg-green-500 h-full" title={`Lorebook: ${Math.round(stats.breakdown.lorebook / 4)} tokens`} />
+                                                <div style={{ width: `${(stats.breakdown.summary / 4 / stats.contextLimit) * 100}%` }} className="bg-purple-500 h-full" title={`Summary: ${Math.round(stats.breakdown.summary / 4)} tokens`} />
+                                                <div style={{ width: `${(stats.breakdown.history / 4 / stats.contextLimit) * 100}%` }} className="bg-blue-500 h-full" title={`History: ${Math.round(stats.breakdown.history / 4)} tokens`} />
+                                            </div>
+                                            <div className="flex flex-wrap gap-4 text-xs">
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> System: {Math.round(stats.breakdown.system / 4)}</div>
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Memories: {Math.round(stats.breakdown.memories / 4)}</div>
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Lorebook: {Math.round(stats.breakdown.lorebook / 4)}</div>
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> Summary: {Math.round(stats.breakdown.summary / 4)}</div>
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> History: {Math.round(stats.breakdown.history / 4)}</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <pre className="flex-1 overflow-auto bg-gray-900 p-4 rounded text-xs md:text-sm font-mono whitespace-pre-wrap text-gray-300">
+                                        {content}
+                                    </pre>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

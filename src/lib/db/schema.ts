@@ -29,6 +29,7 @@ export const chatSessions = sqliteTable('chat_sessions', {
     characterId: integer('character_id').references(() => characters.id).notNull(),
     personaId: integer('persona_id').references(() => personas.id),
     name: text('name'), // Optional custom name for the chat
+    summary: text('summary'), // Summarized history
     lorebooks: text('lorebooks'), // JSON string array of names (overrides character default)
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

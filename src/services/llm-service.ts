@@ -6,6 +6,7 @@ export interface LLMParams {
     top_k?: number;
     repeat_penalty?: number;
     num_predict?: number;
+    num_ctx?: number;
     stop?: string[];
 }
 
@@ -27,6 +28,21 @@ export const llmService = {
         }
     },
 
+    async getModelInfo(model: string) {
+        try {
+            const response = await fetch(`${CONFIG.OLLAMA_URL}/api/show`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: model }),
+            });
+            if (!response.ok) return null;
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching model info:', error);
+            return null;
+        }
+    },
+
     async chat(model: string, messages: ChatMessage[], params: LLMParams = {}) {
         try {
             const response = await fetch(`${CONFIG.OLLAMA_URL}/api/chat`, {
@@ -42,6 +58,7 @@ export const llmService = {
                         top_k: params.top_k,
                         repeat_penalty: params.repeat_penalty,
                         num_predict: params.num_predict,
+                        num_ctx: params.num_ctx,
                         stop: params.stop,
                     }
                 }),
@@ -72,6 +89,7 @@ export const llmService = {
                         top_k: params.top_k,
                         repeat_penalty: params.repeat_penalty,
                         num_predict: params.num_predict,
+                        num_ctx: params.num_ctx,
                         stop: params.stop,
                     }
                 }),
