@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         if (!selectedModel) {
             const models = await llmService.getModels();
             // Prioritize 'stheno' model if available
-            selectedModel = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+            selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
         }
         console.log(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
 

@@ -637,6 +637,31 @@ export default function ChatPage() {
 
 
 
+    const handleImpersonate = async () => {
+        if (isLoading || !currentSessionId) return;
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/chat/impersonate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: currentSessionId,
+                    personaId: selectedPersonaId
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setInput(data.content);
+            }
+        } catch (e) {
+            console.error('Failed to impersonate', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const currentPersona = personas.find(p => p.id === selectedPersonaId);
+
     if (!character) {
         return <div className="p-4 text-center text-white">Loading...</div>;
     }
@@ -1048,7 +1073,7 @@ export default function ChatPage() {
                                         {stats && (
                                             <div className="mb-4 bg-gray-900 p-4 rounded-lg space-y-3">
                                                 <div className="flex justify-between text-sm text-gray-400 mb-1">
-                                                    <span>Context Usage (Est. Tokens)</span>
+                                                    <span>Context Usage</span>
                                                     <span>{Math.round(stats.breakdown.total / 4)} / {stats.contextLimit} tokens ({stats.breakdown.total} chars)</span>
                                                 </div>
                                                 <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden flex">
@@ -1128,7 +1153,7 @@ export default function ChatPage() {
                                 {msg.role === 'assistant' && msg.id && (
                                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600/50">
                                         <div className="flex items-center gap-1">
-                                            {msg.swipes && JSON.parse(msg.swipes).length > 1 && (
+                                            {msg.swipes && JSON.parse(msg.swipes).length > 1 && idx === messages.length - 1 && (
                                                 <>
                                                     <button onClick={() => handleSwipe(msg.id!, 'left')} className="p-1 hover:text-white text-gray-400">
                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -1195,6 +1220,20 @@ export default function ChatPage() {
             {/* Input Area */}
             <div className="p-3 bg-gray-800 border-t border-gray-700">
                 <div className="flex items-end gap-2 bg-gray-900 rounded-2xl p-2 border border-gray-700 focus-within:border-blue-500 transition-colors">
+                    <button
+                        onClick={handleImpersonate}
+                        disabled={isLoading}
+                        className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors mb-1 flex-shrink-0"
+                        title="Impersonate (Generate User Message)"
+                    >
+                        <div className="w-6 h-6 rounded-full overflow-hidden relative bg-gray-600">
+                            {currentPersona?.avatarPath ? (
+                                <Image src={currentPersona.avatarPath} alt="Persona" fill className="object-cover" unoptimized />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-[10px]">{currentPersona?.name?.[0] || 'U'}</div>
+                            )}
+                        </div>
+                    </button>
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}

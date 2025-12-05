@@ -76,6 +76,104 @@ export const contextManager = {
         return [systemMessage, ...formattedHistory];
     },
 
+    buildImpersonationPrompt(
+        character: DBCharacter,
+        persona: DBPersona | null,
+        history: DBMessage[],
+        relevantMemories: DBMemory[] = [],
+        lorebookContent: { content: string; createdAt: string }[] = [],
+        summary: string | null = null
+    ) {
+        const charName = character.name;
+        const userName = persona?.name || 'User';
+
+        const replaceVariables = (text: string) => {
+            if (!text) return '';
+            return text
+                .replace(/{{char}}/gi, charName)
+                .replace(/{{user}}/gi, userName);
+        };
+
+        // --- System Prompt Construction ---
+        const systemPromptParts = [];
+        // Inverted Role: You are {{user}}. Reply as {{user}} only.
+        systemPromptParts.push(`Main: You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+        systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
+
+        // Persona Description (This is now the "Self" description)
+        if (persona) {
+            systemPromptParts.push(`Your Profile:\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
+        }
+
+        // Character Description (This is now the "Other" description)
+        systemPromptParts.push(`You are talking to ${charName}.`);
+        if (character.description) systemPromptParts.push(`${charName}'s Description: ${replaceVariables(character.description)}`);
+        if (character.personality) systemPromptParts.push(`${charName}'s Personality: ${replaceVariables(character.personality)}`);
+        if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
+
+        // Lorebook Injection (World Info)
+        if (lorebookContent && lorebookContent.length > 0) {
+            const sortedEntries = [...lorebookContent].sort((a, b) =>
+                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+            const formattedEntries = sortedEntries.map(entry => `[World Info]: ${entry.content}`);
+            systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
+        }
+
+        // Memories Injection
+        if (relevantMemories.length > 0) {
+            const sortedMemories = [...relevantMemories].sort((a, b) =>
+                new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+            );
+            const memoryText = sortedMemories.map(m => `[Memory]: ${replaceVariables(m.content)}`).join('\n');
+            systemPromptParts.push(`[Memories]\n${memoryText}`);
+        }
+
+        const systemContent = systemPromptParts.join('\n');
+
+        // --- Llama 3 Formatting ---
+        let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
+
+        // --- History ---
+        if (summary) {
+            prompt += `<|start_header_id|>system<|end_header_id|>\n[The Story So Far]\n${summary}<|eot_id|>`;
+        }
+
+        // Handle first message (from Character)
+        if (history.length === 0 && character.firstMessage) {
+            prompt += `<|start_header_id|>user<|end_header_id|>\n${replaceVariables(character.firstMessage)}<|eot_id|>`;
+        }
+
+        for (const msg of history) {
+            // Invert Roles for History:
+            // Real User (You) -> Assistant (in this context, because LLM is playing You)
+            // Real Assistant (Char) -> User (in this context)
+
+            // Wait, Llama 3 expects 'assistant' to be the one generating the completion.
+            // So if we want LLM to generate 'User' response:
+            // The LLM is 'assistant' role in the prompt structure, but we told it "You are User" in system prompt.
+            // So:
+            // Real User messages -> 'assistant' role in prompt (past things "You" said)
+            // Real Character messages -> 'user' role in prompt (things the "User" said to "You")
+
+            const role = msg.role === 'user' ? 'assistant' : 'user';
+            let content = replaceVariables(msg.content);
+
+            if (msg.role === 'assistant') {
+                // Character speaking (mapped to 'user' role)
+                content = `${charName}: ${content}`;
+            }
+
+            prompt += `<|start_header_id|>${role}<|end_header_id|>\n${content}<|eot_id|>`;
+        }
+
+        // --- Prime for Generation ---
+        // We want the LLM (acting as User/Assistant) to generate.
+        prompt += `<|start_header_id|>assistant<|end_header_id|>\n`;
+
+        return { prompt };
+    },
+
     buildLlama3Prompt(
         character: DBCharacter,
         persona: DBPersona | null,
