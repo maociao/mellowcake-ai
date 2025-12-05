@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schema';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, gte, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
@@ -100,5 +100,21 @@ export const chatService = {
         }
 
         return session;
+    },
+
+    async deleteMessageFrom(messageId: number) {
+        // 1. Get the message to find its session and creation time/id
+        const targetMsg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
+        if (!targetMsg) return false;
+
+        // 2. Delete this message and all subsequent messages in the same session
+        // We use ID comparison assuming auto-increment IDs reflect chronological order
+        await db.delete(chatMessages)
+            .where(and(
+                eq(chatMessages.sessionId, targetMsg.sessionId),
+                gte(chatMessages.id, messageId)
+            ));
+
+        return true;
     }
 };

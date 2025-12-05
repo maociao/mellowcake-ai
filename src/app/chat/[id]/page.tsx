@@ -10,6 +10,7 @@ interface Message {
     content: string;
     promptUsed?: string;
     name?: string;
+    id?: number;
 }
 
 interface CharacterDetails {
@@ -409,10 +410,41 @@ export default function ChatPage() {
         }
     };
 
+    // Helper to format message content (italics for *text*)
+    const formatMessage = (content: string) => {
+        const parts = content.split(/(\*[^*]+\*)/g);
+        return parts.map((part, index) => {
+            if (part.startsWith('*') && part.endsWith('*')) {
+                return <em key={index} className="text-blue-200">{part.slice(1, -1)}</em>;
+            }
+            return <span key={index}>{part}</span>;
+        });
+    };
+
     // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    const deleteMessage = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this message? All subsequent messages will also be deleted.')) return;
+
+        try {
+            const res = await fetch(`/api/messages/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                // Remove deleted messages from state
+                setMessages(prev => {
+                    const index = prev.findIndex(m => (m as any).id === id);
+                    if (index !== -1) {
+                        return prev.slice(0, index);
+                    }
+                    return prev;
+                });
+            }
+        } catch (e) {
+            console.error('Failed to delete message', e);
+        }
+    };
 
     const sendMessage = async () => {
         if (!input.trim() || isLoading || !currentSessionId) return;
@@ -560,8 +592,8 @@ export default function ChatPage() {
                                 <textarea name="scenario" defaultValue={character.scenario} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-400">System Prompt</label>
-                                <textarea name="systemPrompt" defaultValue={character.systemPrompt} rows={4} className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm" />
+                                <label className="block text-sm font-medium text-gray-400">First Message</label>
+                                <textarea name="firstMessage" defaultValue={character.firstMessage} rows={4} className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm" />
                             </div>
 
                             {/* Default Lorebooks */}
@@ -864,20 +896,26 @@ export default function ChatPage() {
                                     : 'bg-gray-700 text-gray-100 rounded-bl-none'
                                     }`}
                             >
-                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                <div className="whitespace-pre-wrap">{formatMessage(msg.content)}</div>
 
                                 {/* Log Button */}
                                 {msg.promptUsed && (
                                     <button
                                         onClick={() => setViewingPrompt(msg.promptUsed!)}
-                                        className="absolute -bottom-6 left-0 text-xs text-gray-500 hover:text-gray-300 flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="text-[10px] text-white/50 hover:text-white mt-1 block text-right w-full"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3 mr-1">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                        </svg>
-                                        Log
+                                        View Prompt
                                     </button>
                                 )}
+                                <button
+                                    onClick={() => deleteMessage((msg as any).id)}
+                                    className="absolute top-1 right-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 text-gray-400 hover:text-red-400 p-1"
+                                    title="Delete from here"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                </button>
                             </div>
 
                             {/* User Avatar (Right) */}
