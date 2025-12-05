@@ -41,6 +41,7 @@ export const chatMessages = sqliteTable('chat_messages', {
     content: text('content').notNull(),
     originalContent: text('original_content'), // In case of edits
     promptUsed: text('prompt_used'), // For debugging/logging what was sent to LLM
+    name: text('name'), // Name of the sender at the time of the message (for multi-persona history)
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

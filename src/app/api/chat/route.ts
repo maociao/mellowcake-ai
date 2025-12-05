@@ -31,8 +31,9 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Save User Message
-        console.log(`[Chat API] Saving user message for session ${sessionId}`);
-        await chatService.addMessage(sessionId, 'user', content);
+        const senderName = persona?.name || 'User';
+        console.log(`[Chat API] Saving user message for session ${sessionId} as ${senderName}`);
+        await chatService.addMessage(sessionId, 'user', content, undefined, senderName);
 
         // 3. Get History
         const history = await chatService.getMessages(sessionId);
@@ -74,13 +75,21 @@ export async function POST(request: NextRequest) {
         }
         console.log(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
 
-        const responseContent = await llmService.generate(selectedModel, rawPrompt, {
-            stop: ['<|eot_id|>', `${character.name}:`, `${persona?.name || 'User'}:`] // Stop tokens to prevent self-conversation
+        let responseContent = await llmService.generate(selectedModel, rawPrompt, {
+            stop: ['<|eot_id|>', `${persona?.name || 'User'}:`] // Stop tokens to prevent self-conversation
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 
+        // Strip character name prefix if present (e.g. "CharacterName: Hello")
+        const prefix = `${character.name}:`;
+        if (responseContent.trim().startsWith(prefix)) {
+            responseContent = responseContent.trim().substring(prefix.length).trim();
+        } else if (responseContent.trim().startsWith(`${character.name}: `)) { // Handle potential spacing variations
+            responseContent = responseContent.trim().substring(`${character.name}: `.length).trim();
+        }
+
         // 6. Save Assistant Message with Prompt
-        const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed);
+        const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);
         console.log(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
         // 7. Generate new memory (async, don't block response)

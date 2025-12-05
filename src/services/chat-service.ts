@@ -37,7 +37,7 @@ export const chatService = {
             .orderBy(desc(chatSessions.updatedAt));
     },
 
-    async addMessage(sessionId: number, role: 'user' | 'assistant' | 'system', content: string, promptUsed?: string) {
+    async addMessage(sessionId: number, role: 'user' | 'assistant' | 'system', content: string, promptUsed?: string, name?: string) {
         // Update session timestamp
         await db.update(chatSessions)
             .set({ updatedAt: new Date().toISOString() })
@@ -48,6 +48,7 @@ export const chatService = {
             role,
             content,
             promptUsed,
+            name,
         }).returning();
     },
 

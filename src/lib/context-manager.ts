@@ -4,7 +4,7 @@ import { characters, personas, chatMessages, memories } from '@/lib/db/schema';
 // Helper types based on schema
 type DBCharacter = typeof characters.$inferSelect;
 type DBPersona = typeof personas.$inferSelect;
-type DBMessage = typeof chatMessages.$inferSelect;
+type DBMessage = typeof chatMessages.$inferSelect & { name?: string | null };
 type DBMemory = typeof memories.$inferSelect;
 
 export const contextManager = {
@@ -160,19 +160,25 @@ export const contextManager = {
         // --- History ---
         // Handle first message
         if (history.length === 0 && character.firstMessage) {
-            prompt += `<|start_header_id|>assistant<|end_header_id|>\n${charName}: ${replaceVariables(character.firstMessage)}<|eot_id|>`;
+            prompt += `<|start_header_id|>assistant<|end_header_id|>\n${replaceVariables(character.firstMessage)}<|eot_id|>`;
         }
 
         for (const msg of history) {
             const role = msg.role === 'user' ? 'user' : 'assistant';
-            const name = msg.role === 'user' ? userName : charName;
-            const content = replaceVariables(msg.content);
+            let content = replaceVariables(msg.content);
 
-            prompt += `<|start_header_id|>${role}<|end_header_id|>\n${name}: ${content}<|eot_id|>`;
+            // Add name prefix for User messages to support multi-persona
+            if (role === 'user') {
+                // Use stored name if available (for history), otherwise current persona name
+                const nameToUse = msg.name || userName;
+                content = `${nameToUse}: ${content}`;
+            }
+
+            prompt += `<|start_header_id|>${role}<|end_header_id|>\n${content}<|eot_id|>`;
         }
 
         // --- Assistant Prime ---
-        prompt += `<|start_header_id|>assistant<|end_header_id|>\n${charName}:`;
+        prompt += `<|start_header_id|>assistant<|end_header_id|>\n`;
 
         return prompt;
     }

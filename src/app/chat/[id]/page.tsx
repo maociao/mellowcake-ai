@@ -9,6 +9,7 @@ interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
     promptUsed?: string;
+    name?: string;
 }
 
 interface CharacterDetails {
@@ -233,6 +234,28 @@ export default function ChatPage() {
         }
     };
 
+    const deleteSession = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this chat session? This cannot be undone.')) return;
+
+        try {
+            const res = await fetch(`/api/chats/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                setSessions(prev => prev.filter(s => s.id !== id));
+                if (currentSessionId === id) {
+                    setCurrentSessionId(null);
+                    setMessages([]);
+                    // Optionally load another session or create new
+                    if (sessions.length > 1) {
+                        const next = sessions.find(s => s.id !== id);
+                        if (next) selectSession(next.id);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to delete session', e);
+        }
+    };
+
 
 
     // Update character defaults
@@ -394,7 +417,12 @@ export default function ChatPage() {
     const sendMessage = async () => {
         if (!input.trim() || isLoading || !currentSessionId) return;
 
-        const userMessage: Message = { role: 'user', content: input };
+        const currentPersona = personas.find(p => p.id === selectedPersonaId);
+        const userMessage: Message = {
+            role: 'user',
+            content: input,
+            name: currentPersona?.name || 'User'
+        };
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
@@ -492,6 +520,11 @@ export default function ChatPage() {
                                     <button onClick={() => { setEditingSessionId(session.id); setEditSessionName(session.name); }} className="p-2 text-gray-400 hover:text-white">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                        </svg>
+                                    </button>
+                                    <button onClick={() => deleteSession(session.id)} className="p-2 text-gray-400 hover:text-red-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                         </svg>
                                     </button>
                                 </div>
@@ -641,6 +674,10 @@ export default function ChatPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-400">Description</label>
                                 <textarea name="description" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.description : ''} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400">Avatar Path / URL</label>
+                                <input name="avatarPath" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.avatarPath : ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="/personas/my-avatar.png" />
                             </div>
                             <div className="flex justify-end space-x-2">
                                 <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
@@ -794,34 +831,71 @@ export default function ChatPage() {
             )}
 
             {/* Chat Area */}
+            {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                            className={`max-w-[85%] rounded-2xl px-4 py-2 relative group ${msg.role === 'user'
-                                ? 'bg-blue-600 text-white rounded-br-none'
-                                : 'bg-gray-700 text-gray-100 rounded-bl-none'
-                                }`}
-                        >
-                            <div className="whitespace-pre-wrap text-sm md:text-base">
-                                {msg.content}
+                {messages.map((msg, idx) => {
+                    // Find persona for avatar
+                    let avatarPath = null;
+                    if (msg.role === 'user') {
+                        // Try to find persona by name stored in message
+                        if (msg.name) {
+                            const p = personas.find(p => p.name === msg.name);
+                            if (p) avatarPath = p.avatarPath;
+                        }
+                        // Fallback to current selected persona if no name stored (legacy) or name matches
+                        if (!avatarPath && selectedPersonaId) {
+                            const p = personas.find(p => p.id === selectedPersonaId);
+                            if (p && (!msg.name || p.name === msg.name)) avatarPath = p.avatarPath;
+                        }
+                    }
+
+                    return (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                            {/* Assistant Avatar (Left) */}
+                            {msg.role === 'assistant' && (
+                                <div className="w-8 h-8 rounded-full overflow-hidden relative flex-shrink-0 bg-gray-700">
+                                    <Image src={character.avatarPath || '/placeholder.png'} alt={character.name} fill className="object-cover" unoptimized />
+                                </div>
+                            )}
+
+                            <div
+                                className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.role === 'user'
+                                    ? 'bg-blue-600 text-white rounded-br-none'
+                                    : 'bg-gray-700 text-gray-100 rounded-bl-none'
+                                    }`}
+                            >
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                                {/* Log Button */}
+                                {msg.promptUsed && (
+                                    <button
+                                        onClick={() => setViewingPrompt(msg.promptUsed!)}
+                                        className="absolute -bottom-6 left-0 text-xs text-gray-500 hover:text-gray-300 flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3 mr-1">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                        </svg>
+                                        Log
+                                    </button>
+                                )}
                             </div>
 
-                            {/* Log Button */}
-                            {msg.promptUsed && (
-                                <button
-                                    onClick={() => setViewingPrompt(msg.promptUsed!)}
-                                    className="absolute -bottom-6 left-0 text-xs text-gray-500 hover:text-gray-300 flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3 mr-1">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                    </svg>
-                                    Log
-                                </button>
+                            {/* User Avatar (Right) */}
+                            {msg.role === 'user' && (
+                                <div className="w-8 h-8 rounded-full overflow-hidden relative flex-shrink-0 bg-gray-700">
+                                    {avatarPath ? (
+                                        <Image src={avatarPath} alt="User" fill className="object-cover" unoptimized />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-xs text-gray-400">
+                                            {msg.name ? msg.name[0] : 'U'}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
-                    </div>
-                ))}
+                    )
+                })}
+
                 {isLoading && (
                     <div className="flex justify-start">
                         <div className="bg-gray-700 text-gray-100 rounded-2xl rounded-bl-none px-4 py-2">
