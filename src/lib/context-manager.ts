@@ -113,7 +113,25 @@ export const contextManager = {
         }
 
         if (relevantMemories.length > 0) {
-            const memoryText = relevantMemories.map(m => `- ${replaceVariables(m.content)}`).join('\n');
+            const memoryText = relevantMemories.map(m => {
+                // Calculate time ago
+                const date = new Date(m.createdAt || new Date());
+                const now = new Date();
+                const diffMs = now.getTime() - date.getTime();
+
+                const diffSec = Math.floor(diffMs / 1000);
+                const diffMin = Math.floor(diffSec / 60);
+                const diffHour = Math.floor(diffMin / 60);
+                const diffDay = Math.floor(diffHour / 24);
+
+                let timeAgo = '';
+                if (diffDay > 0) timeAgo = `${diffDay}d ago`;
+                else if (diffHour > 0) timeAgo = `${diffHour}h ago`;
+                else if (diffMin > 0) timeAgo = `${diffMin}m ago`;
+                else timeAgo = 'just now';
+
+                return `[${timeAgo}] ${replaceVariables(m.content)}`;
+            }).join('\n');
             systemPromptParts.push(`[Memories]\n${memoryText}`);
         }
 

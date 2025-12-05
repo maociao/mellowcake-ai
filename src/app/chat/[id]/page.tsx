@@ -87,6 +87,106 @@ export default function ChatPage() {
 
     // Prompt Inspection State
     const [viewingPrompt, setViewingPrompt] = useState<string | null>(null);
+    const [charEditTab, setCharEditTab] = useState<'details' | 'memories'>('details');
+
+    // --- Memory Editor Component ---
+    function MemoryEditor({ characterId }: { characterId: number }) {
+        const [memories, setMemories] = useState<any[]>([]);
+        const [loading, setLoading] = useState(true);
+        const [newContent, setNewContent] = useState('');
+        const [newKeywords, setNewKeywords] = useState('');
+
+        useEffect(() => {
+            fetchMemories();
+        }, [characterId]);
+
+        const fetchMemories = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`/api/memories?characterId=${characterId}`);
+                if (res.ok) setMemories(await res.json());
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const createMemory = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!newContent) return;
+            try {
+                const res = await fetch('/api/memories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        characterId,
+                        content: newContent,
+                        keywords: newKeywords.split(',').map(k => k.trim()).filter(k => k)
+                    })
+                });
+                if (res.ok) {
+                    setNewContent('');
+                    setNewKeywords('');
+                    fetchMemories();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const deleteMemory = async (id: number) => {
+            if (!confirm('Delete this memory?')) return;
+            try {
+                const res = await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+                if (res.ok) fetchMemories();
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        return (
+            <div className="space-y-4">
+                <div className="bg-gray-700 p-4 rounded">
+                    <h4 className="font-bold mb-2">Add New Memory</h4>
+                    <form onSubmit={createMemory} className="space-y-2">
+                        <input
+                            placeholder="Memory Content (e.g. User likes apples)"
+                            className="w-full bg-gray-800 rounded p-2 text-white"
+                            value={newContent}
+                            onChange={e => setNewContent(e.target.value)}
+                        />
+                        <input
+                            placeholder="Keywords (comma separated)"
+                            className="w-full bg-gray-800 rounded p-2 text-white"
+                            value={newKeywords}
+                            onChange={e => setNewKeywords(e.target.value)}
+                        />
+                        <button type="submit" className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm">Add Memory</button>
+                    </form>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {loading ? <p className="text-gray-400">Loading...</p> : memories.map(mem => (
+                        <div key={mem.id} className="bg-gray-700 p-3 rounded flex justify-between items-start group">
+                            <div>
+                                <div className="text-sm text-white mb-1">{mem.content}</div>
+                                <div className="text-xs text-gray-400 font-mono">
+                                    {JSON.parse(mem.keywords || '[]').join(', ')}
+                                </div>
+                            </div>
+                            <button onClick={() => deleteMemory(mem.id)} className="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </div>
+                    ))}
+                    {!loading && memories.length === 0 && <p className="text-gray-500 text-center">No memories found.</p>}
+                </div>
+            </div>
+        );
+    }
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -473,8 +573,15 @@ export default function ChatPage() {
 
             if (!response.ok) throw new Error('Failed to send message');
 
-            const assistantMsg = await response.json();
-            setMessages(prev => [...prev, assistantMsg]);
+            const { userMessage: savedUserMsg, assistantMessage: assistantMsg } = await response.json();
+
+            // Update messages: Replace the optimistic user message (last one) with the saved one, and add assistant message
+            setMessages(prev => {
+                const newMessages = [...prev];
+                // Replace the last message (optimistic user message) with the saved one containing the ID
+                newMessages[newMessages.length - 1] = savedUserMsg;
+                return [...newMessages, assistantMsg];
+            });
         } catch (error) {
             console.error('Error sending message:', error);
             setMessages(prev => [...prev, { role: 'assistant', content: 'Error: Failed to get response.' }]);
@@ -567,6 +674,7 @@ export default function ChatPage() {
             )}
 
             {/* Character Edit Modal */}
+            {/* Character Edit Modal */}
             {showCharEdit && (
                 <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                     <div className="bg-gray-800 rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
@@ -574,345 +682,356 @@ export default function ChatPage() {
                             <h2 className="text-xl font-bold">Edit Character</h2>
                             <button onClick={() => setShowCharEdit(false)} className="text-gray-400 hover:text-white">Close</button>
                         </div>
-                        <form onSubmit={updateCharacter} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Name</label>
-                                <input name="name" defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Description</label>
-                                <textarea name="description" defaultValue={character.description} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Personality</label>
-                                <textarea name="personality" defaultValue={character.personality} rows={2} className="w-full bg-gray-700 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Scenario</label>
-                                <textarea name="scenario" defaultValue={character.scenario} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">First Message</label>
-                                <textarea name="firstMessage" defaultValue={character.firstMessage} rows={4} className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm" />
-                            </div>
 
-                            {/* Default Lorebooks */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Default Memory Books</label>
-                                <div className="space-y-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded">
-                                    {lorebooks.map(lb => (
-                                        <label key={lb.id || lb.name} className="flex items-center space-x-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                name="lorebooks"
-                                                value={lb.name}
-                                                defaultChecked={(() => {
-                                                    try {
-                                                        const defaults = JSON.parse(character.lorebooks || '[]');
-                                                        return defaults.includes(lb.name);
-                                                    } catch { return false; }
-                                                })()}
-                                                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm">{lb.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end">
-                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Changes</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Settings Modal */}
-            {showSettings && (
-                <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Settings</h2>
-                            <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">Close</button>
+                        {/* Tabs */}
+                        <div className="flex border-b border-gray-700 mb-4">
+                            <button type="button" onClick={() => setCharEditTab('details')} className={`px-4 py-2 ${charEditTab === 'details' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Details</button>
+                            <button type="button" onClick={() => setCharEditTab('memories')} className={`px-4 py-2 ${charEditTab === 'memories' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Memories</button>
                         </div>
 
-                        {/* Personas */}
-                        <div className="mb-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Persona</h3>
-                                <button onClick={() => setShowPersonaEdit('new')} className="text-xs text-blue-400 hover:text-blue-300">+ New</button>
-                            </div>
-                            <div className="space-y-2">
-                                {personas.map(p => (
-                                    <div key={p.id} className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => setSelectedPersonaId(p.id)}
-                                            className={`flex-1 text-left p-2 rounded flex items-center space-x-3 ${selectedPersonaId === p.id ? 'bg-blue-900/40 text-blue-100' : 'hover:bg-gray-700'}`}
-                                        >
-                                            <div className="w-8 h-8 rounded-full overflow-hidden relative bg-gray-600 flex-shrink-0">
-                                                {p.avatarPath ? (
-                                                    <Image src={p.avatarPath} alt={p.name} fill className="object-cover" unoptimized />
-                                                ) : (
-                                                    <div className="flex items-center justify-center h-full text-xs">{p.name[0]}</div>
-                                                )}
-                                            </div>
-                                            <span className="truncate">{p.name}</span>
-                                        </button>
-                                        <button onClick={() => setShowPersonaEdit(p)} className="p-2 text-gray-400 hover:text-white">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                            </svg>
-                                        </button>
+                        {charEditTab === 'details' ? (
+                            <form onSubmit={updateCharacter} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Name</label>
+                                    <input name="name" defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Description</label>
+                                    <textarea name="description" defaultValue={character.description} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Personality</label>
+                                    <textarea name="personality" defaultValue={character.personality} rows={2} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Scenario</label>
+                                    <textarea name="scenario" defaultValue={character.scenario} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">First Message</label>
+                                    <textarea name="firstMessage" defaultValue={character.firstMessage} rows={4} className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm" />
+                                </div>
+
+                                {/* Default Lorebooks */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Default Lorebooks</label>
+                                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded">
+                                        {lorebooks.map(lb => (
+                                            <label key={lb.id} className="flex items-center space-x-2 p-1 hover:bg-gray-600 rounded cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    name="lorebooks"
+                                                    value={lb.name}
+                                                    defaultChecked={character.lorebooks?.includes(lb.name)}
+                                                    className="rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm truncate" title={lb.name}>{lb.name}</span>
+                                            </label>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Lorebooks */}
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Memory Books</h3>
-                                <button onClick={() => setShowLorebookManage(true)} className="text-xs text-blue-400 hover:text-blue-300">Manage</button>
-                            </div>
-                            <div className="space-y-2">
-                                {lorebooks.map(lb => (
-                                    <label key={lb.id || lb.name} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedLorebooks.includes(lb.name)}
-                                            onChange={() => toggleLorebook(lb.name)}
-                                            className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>{lb.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Persona Edit Modal */}
-            {showPersonaEdit && (
-                <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6">
-                        <h2 className="text-xl font-bold mb-4">{showPersonaEdit === 'new' ? 'New Persona' : 'Edit Persona'}</h2>
-                        <form onSubmit={savePersona} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Name</label>
-                                <input name="name" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.name : ''} className="w-full bg-gray-700 rounded p-2 text-white" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Description</label>
-                                <textarea name="description" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.description : ''} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400">Avatar Path / URL</label>
-                                <input name="avatarPath" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.avatarPath : ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="/personas/my-avatar.png" />
-                            </div>
-                            <div className="flex justify-end space-x-2">
-                                <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Lorebook Manage Modal */}
-            {showLorebookManage && (
-                <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Manage Memory Books</h2>
-                            <button onClick={() => setShowLorebookManage(false)} className="text-gray-400 hover:text-white">Close</button>
-                        </div>
-
-                        {!editingLorebook ? (
-                            <div>
-                                <button onClick={() => setEditingLorebook('new')} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg mb-4">Create New Book</button>
-                                <div className="space-y-2">
-                                    {lorebooks.map(lb => (
-                                        <div key={lb.id || lb.name} className="flex justify-between items-center p-3 bg-gray-700 rounded">
-                                            <div>
-                                                <div className="font-bold">{lb.name}</div>
-                                                <div className="text-xs text-gray-400 truncate max-w-xs">{lb.description}</div>
-                                            </div>
-                                            <button onClick={() => loadLorebookDetails(lb.id!)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                                        </div>
-                                    ))}
                                 </div>
-                            </div>
+
+                                <div className="flex justify-end pt-4">
+                                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Changes</button>
+                                </div>
+                            </form>
                         ) : (
-                            <div className="flex flex-col h-full">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-semibold">{typeof editingLorebook === 'string' ? 'New Book' : editingLorebook.name}</h3>
-                                    <button onClick={() => setEditingLorebook(null)} className="text-gray-400 hover:text-white">Back to List</button>
-                                </div>
-
-                                <form onSubmit={saveLorebook} className="space-y-4 mb-6 border-b border-gray-700 pb-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-400">Name</label>
-                                            <input name="name" defaultValue={typeof editingLorebook !== 'string' ? editingLorebook.name : ''} className="w-full bg-gray-700 rounded p-2 text-white" required />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-400">Description</label>
-                                            <input name="description" defaultValue={typeof editingLorebook !== 'string' ? editingLorebook.description : ''} className="w-full bg-gray-700 rounded p-2 text-white" />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Details</button>
-                                    </div>
-                                </form>
-
-                                {typeof editingLorebook !== 'string' && (
-                                    <div className="flex-1">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-semibold text-gray-400">Entries</h4>
-                                            <button onClick={() => setEditingEntry('new')} className="text-xs text-blue-400 hover:text-blue-300">+ Add Entry</button>
-                                        </div>
-
-                                        {!editingEntry ? (
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                                {editingLorebook.entries?.map(entry => (
-                                                    <div key={entry.id} className="bg-gray-700 p-3 rounded flex justify-between items-start">
-                                                        <div className="flex-1 mr-4">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span className={`w-2 h-2 rounded-full ${entry.enabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                                                                <span className="font-bold text-sm">{entry.label || 'No Label'}</span>
-                                                            </div>
-                                                            <div className="text-xs text-gray-300 line-clamp-2 mb-1">{entry.content}</div>
-                                                            <div className="text-xs text-gray-500 font-mono">
-                                                                {JSON.parse(entry.keywords || '[]').join(', ')}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <button onClick={() => setEditingEntry(entry)} className="text-blue-400 hover:text-blue-300 text-xs">Edit</button>
-                                                            <button onClick={() => deleteEntry(entry.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {(!editingLorebook.entries || editingLorebook.entries.length === 0) && (
-                                                    <p className="text-gray-500 text-center py-4">No entries yet.</p>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="bg-gray-700 p-4 rounded">
-                                                <h4 className="font-bold mb-4">{editingEntry === 'new' ? 'New Entry' : 'Edit Entry'}</h4>
-                                                <form onSubmit={saveEntry} className="space-y-4">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-400">Label (Comment)</label>
-                                                        <input name="label" defaultValue={typeof editingEntry !== 'string' ? editingEntry.label : ''} className="w-full bg-gray-800 rounded p-2 text-white" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-400">Content</label>
-                                                        <textarea name="content" defaultValue={typeof editingEntry !== 'string' ? editingEntry.content : ''} rows={4} className="w-full bg-gray-800 rounded p-2 text-white" required />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-400">Keywords (comma separated)</label>
-                                                        <input
-                                                            name="keywords"
-                                                            defaultValue={typeof editingEntry !== 'string' ? JSON.parse(editingEntry.keywords || '[]').join(', ') : ''}
-                                                            className="w-full bg-gray-800 rounded p-2 text-white"
-                                                            placeholder="keyword1, keyword2, phrase three"
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            name="enabled"
-                                                            defaultChecked={typeof editingEntry !== 'string' ? editingEntry.enabled : true}
-                                                            className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 mr-2"
-                                                        />
-                                                        <label className="text-sm text-gray-400">Enabled</label>
-                                                    </div>
-                                                    <div className="flex justify-end space-x-2">
-                                                        <button type="button" onClick={() => setEditingEntry(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                                                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Entry</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                            <MemoryEditor characterId={character.id} />
                         )}
                     </div>
                 </div>
             )}
 
-            {/* Prompt Viewer Modal */}
-            {viewingPrompt && (
-                <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Prompt Log</h2>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => {
-                                        const content = JSON.parse(viewingPrompt).prompt || viewingPrompt;
-                                        navigator.clipboard.writeText(content);
-                                    }}
-                                    className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
-                                >
-                                    Copy
-                                </button>
-                                <button onClick={() => setViewingPrompt(null)} className="text-gray-400 hover:text-white">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
+            {/* Settings Modal */}
+            {
+                showSettings && (
+                    <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold">Settings</h2>
+                                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">Close</button>
+                            </div>
+
+                            {/* Personas */}
+                            <div className="mb-6">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Persona</h3>
+                                    <button onClick={() => setShowPersonaEdit('new')} className="text-xs text-blue-400 hover:text-blue-300">+ New</button>
+                                </div>
+                                <div className="space-y-2">
+                                    {personas.map(p => (
+                                        <div key={p.id} className="flex items-center space-x-2">
+                                            <button
+                                                onClick={() => setSelectedPersonaId(p.id)}
+                                                className={`flex-1 text-left p-2 rounded flex items-center space-x-3 ${selectedPersonaId === p.id ? 'bg-blue-900/40 text-blue-100' : 'hover:bg-gray-700'}`}
+                                            >
+                                                <div className="w-8 h-8 rounded-full overflow-hidden relative bg-gray-600 flex-shrink-0">
+                                                    {p.avatarPath ? (
+                                                        <Image src={p.avatarPath} alt={p.name} fill className="object-cover" unoptimized />
+                                                    ) : (
+                                                        <div className="flex items-center justify-center h-full text-xs">{p.name[0]}</div>
+                                                    )}
+                                                </div>
+                                                <span className="truncate">{p.name}</span>
+                                            </button>
+                                            <button onClick={() => setShowPersonaEdit(p)} className="p-2 text-gray-400 hover:text-white">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Lorebooks */}
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Memory Books</h3>
+                                    <button onClick={() => setShowLorebookManage(true)} className="text-xs text-blue-400 hover:text-blue-300">Manage</button>
+                                </div>
+                                <div className="space-y-2">
+                                    {lorebooks.map(lb => (
+                                        <label key={lb.id || lb.name} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedLorebooks.includes(lb.name)}
+                                                onChange={() => toggleLorebook(lb.name)}
+                                                className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>{lb.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         </div>
+                    </div>
+                )
+            }
 
-                        {(() => {
-                            let content = viewingPrompt;
-                            let stats = null;
-                            try {
-                                const parsed = JSON.parse(viewingPrompt);
-                                if (parsed.breakdown) {
-                                    content = parsed.prompt;
-                                    stats = parsed;
-                                }
-                            } catch (e) {
-                                // Not JSON, legacy format
-                            }
+            {/* Persona Edit Modal */}
+            {
+                showPersonaEdit && (
+                    <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6">
+                            <h2 className="text-xl font-bold mb-4">{showPersonaEdit === 'new' ? 'New Persona' : 'Edit Persona'}</h2>
+                            <form onSubmit={savePersona} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Name</label>
+                                    <input name="name" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.name : ''} className="w-full bg-gray-700 rounded p-2 text-white" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Description</label>
+                                    <textarea name="description" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.description : ''} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Avatar Path / URL</label>
+                                    <input name="avatarPath" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.avatarPath : ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="/personas/my-avatar.png" />
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                    <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
 
-                            return (
-                                <>
-                                    {stats && (
-                                        <div className="mb-4 bg-gray-900 p-4 rounded-lg space-y-3">
-                                            <div className="flex justify-between text-sm text-gray-400 mb-1">
-                                                <span>Context Usage (Est. Tokens)</span>
-                                                <span>{Math.round(stats.breakdown.total / 4)} / {stats.contextLimit} tokens ({stats.breakdown.total} chars)</span>
+            {/* Lorebook Manage Modal */}
+            {
+                showLorebookManage && (
+                    <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold">Manage Memory Books</h2>
+                                <button onClick={() => setShowLorebookManage(false)} className="text-gray-400 hover:text-white">Close</button>
+                            </div>
+
+                            {!editingLorebook ? (
+                                <div>
+                                    <button onClick={() => setEditingLorebook('new')} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg mb-4">Create New Book</button>
+                                    <div className="space-y-2">
+                                        {lorebooks.map(lb => (
+                                            <div key={lb.id || lb.name} className="flex justify-between items-center p-3 bg-gray-700 rounded">
+                                                <div>
+                                                    <div className="font-bold">{lb.name}</div>
+                                                    <div className="text-xs text-gray-400 truncate max-w-xs">{lb.description}</div>
+                                                </div>
+                                                <button onClick={() => loadLorebookDetails(lb.id!)} className="text-blue-400 hover:text-blue-300">Edit</button>
                                             </div>
-                                            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden flex">
-                                                <div style={{ width: `${(stats.breakdown.system / 4 / stats.contextLimit) * 100}%` }} className="bg-red-500 h-full" title={`System: ${Math.round(stats.breakdown.system / 4)} tokens`} />
-                                                <div style={{ width: `${(stats.breakdown.memories / 4 / stats.contextLimit) * 100}%` }} className="bg-yellow-500 h-full" title={`Memories: ${Math.round(stats.breakdown.memories / 4)} tokens`} />
-                                                <div style={{ width: `${(stats.breakdown.lorebook / 4 / stats.contextLimit) * 100}%` }} className="bg-green-500 h-full" title={`Lorebook: ${Math.round(stats.breakdown.lorebook / 4)} tokens`} />
-                                                <div style={{ width: `${(stats.breakdown.summary / 4 / stats.contextLimit) * 100}%` }} className="bg-purple-500 h-full" title={`Summary: ${Math.round(stats.breakdown.summary / 4)} tokens`} />
-                                                <div style={{ width: `${(stats.breakdown.history / 4 / stats.contextLimit) * 100}%` }} className="bg-blue-500 h-full" title={`History: ${Math.round(stats.breakdown.history / 4)} tokens`} />
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col h-full">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-semibold">{typeof editingLorebook === 'string' ? 'New Book' : editingLorebook.name}</h3>
+                                        <button onClick={() => setEditingLorebook(null)} className="text-gray-400 hover:text-white">Back to List</button>
+                                    </div>
+
+                                    <form onSubmit={saveLorebook} className="space-y-4 mb-6 border-b border-gray-700 pb-6">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-400">Name</label>
+                                                <input name="name" defaultValue={typeof editingLorebook !== 'string' ? editingLorebook.name : ''} className="w-full bg-gray-700 rounded p-2 text-white" required />
                                             </div>
-                                            <div className="flex flex-wrap gap-4 text-xs">
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> System: {Math.round(stats.breakdown.system / 4)}</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Memories: {Math.round(stats.breakdown.memories / 4)}</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Lorebook: {Math.round(stats.breakdown.lorebook / 4)}</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> Summary: {Math.round(stats.breakdown.summary / 4)}</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> History: {Math.round(stats.breakdown.history / 4)}</div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-400">Description</label>
+                                                <input name="description" defaultValue={typeof editingLorebook !== 'string' ? editingLorebook.description : ''} className="w-full bg-gray-700 rounded p-2 text-white" />
                                             </div>
                                         </div>
+                                        <div className="flex justify-end">
+                                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Details</button>
+                                        </div>
+                                    </form>
+
+                                    {typeof editingLorebook !== 'string' && (
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className="font-semibold text-gray-400">Entries</h4>
+                                                <button onClick={() => setEditingEntry('new')} className="text-xs text-blue-400 hover:text-blue-300">+ Add Entry</button>
+                                            </div>
+
+                                            {!editingEntry ? (
+                                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                    {editingLorebook.entries?.map(entry => (
+                                                        <div key={entry.id} className="bg-gray-700 p-3 rounded flex justify-between items-start">
+                                                            <div className="flex-1 mr-4">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className={`w-2 h-2 rounded-full ${entry.enabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                                                    <span className="font-bold text-sm">{entry.label || 'No Label'}</span>
+                                                                </div>
+                                                                <div className="text-xs text-gray-300 line-clamp-2 mb-1">{entry.content}</div>
+                                                                <div className="text-xs text-gray-500 font-mono">
+                                                                    {JSON.parse(entry.keywords || '[]').join(', ')}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                <button onClick={() => setEditingEntry(entry)} className="text-blue-400 hover:text-blue-300 text-xs">Edit</button>
+                                                                <button onClick={() => deleteEntry(entry.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {(!editingLorebook.entries || editingLorebook.entries.length === 0) && (
+                                                        <p className="text-gray-500 text-center py-4">No entries yet.</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="bg-gray-700 p-4 rounded">
+                                                    <h4 className="font-bold mb-4">{editingEntry === 'new' ? 'New Entry' : 'Edit Entry'}</h4>
+                                                    <form onSubmit={saveEntry} className="space-y-4">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-400">Content</label>
+                                                            <textarea name="content" defaultValue={typeof editingEntry !== 'string' ? editingEntry.content : ''} rows={4} className="w-full bg-gray-800 rounded p-2 text-white" required />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-400">Keywords (comma separated)</label>
+                                                            <input
+                                                                name="keywords"
+                                                                defaultValue={typeof editingEntry !== 'string' ? JSON.parse(editingEntry.keywords || '[]').join(', ') : ''}
+                                                                className="w-full bg-gray-800 rounded p-2 text-white"
+                                                                placeholder="keyword1, keyword2, phrase three"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                name="enabled"
+                                                                defaultChecked={typeof editingEntry !== 'string' ? editingEntry.enabled : true}
+                                                                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 mr-2"
+                                                            />
+                                                            <label className="text-sm text-gray-400">Enabled</label>
+                                                        </div>
+                                                        <div className="flex justify-end space-x-2">
+                                                            <button type="button" onClick={() => setEditingEntry(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                                                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Entry</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
-                                    <pre className="flex-1 overflow-auto bg-gray-900 p-4 rounded text-xs md:text-sm font-mono whitespace-pre-wrap text-gray-300">
-                                        {content}
-                                    </pre>
-                                </>
-                            );
-                        })()}
+                                </div>
+                            )
+                            }
+                        </div >
+                    </div >
+                )
+            }
+
+            {/* Prompt Viewer Modal */}
+            {
+                viewingPrompt && (
+                    <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold">Prompt Log</h2>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const content = JSON.parse(viewingPrompt).prompt || viewingPrompt;
+                                            navigator.clipboard.writeText(content);
+                                        }}
+                                        className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
+                                    >
+                                        Copy
+                                    </button>
+                                    <button onClick={() => setViewingPrompt(null)} className="text-gray-400 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                let content = viewingPrompt;
+                                let stats = null;
+                                try {
+                                    const parsed = JSON.parse(viewingPrompt);
+                                    if (parsed.breakdown) {
+                                        content = parsed.prompt;
+                                        stats = parsed;
+                                    }
+                                } catch (e) {
+                                    // Not JSON, legacy format
+                                }
+
+                                return (
+                                    <>
+                                        {stats && (
+                                            <div className="mb-4 bg-gray-900 p-4 rounded-lg space-y-3">
+                                                <div className="flex justify-between text-sm text-gray-400 mb-1">
+                                                    <span>Context Usage (Est. Tokens)</span>
+                                                    <span>{Math.round(stats.breakdown.total / 4)} / {stats.contextLimit} tokens ({stats.breakdown.total} chars)</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden flex">
+                                                    <div style={{ width: `${(stats.breakdown.system / 4 / stats.contextLimit) * 100}%` }} className="bg-red-500 h-full" title={`System: ${Math.round(stats.breakdown.system / 4)} tokens`} />
+                                                    <div style={{ width: `${(stats.breakdown.memories / 4 / stats.contextLimit) * 100}%` }} className="bg-yellow-500 h-full" title={`Memories: ${Math.round(stats.breakdown.memories / 4)} tokens`} />
+                                                    <div style={{ width: `${(stats.breakdown.lorebook / 4 / stats.contextLimit) * 100}%` }} className="bg-green-500 h-full" title={`Lorebook: ${Math.round(stats.breakdown.lorebook / 4)} tokens`} />
+                                                    <div style={{ width: `${(stats.breakdown.summary / 4 / stats.contextLimit) * 100}%` }} className="bg-purple-500 h-full" title={`Summary: ${Math.round(stats.breakdown.summary / 4)} tokens`} />
+                                                    <div style={{ width: `${(stats.breakdown.history / 4 / stats.contextLimit) * 100}%` }} className="bg-blue-500 h-full" title={`History: ${Math.round(stats.breakdown.history / 4)} tokens`} />
+                                                </div>
+                                                <div className="flex flex-wrap gap-4 text-xs">
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> System: {Math.round(stats.breakdown.system / 4)}</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Memories: {Math.round(stats.breakdown.memories / 4)}</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Lorebook: {Math.round(stats.breakdown.lorebook / 4)}</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> Summary: {Math.round(stats.breakdown.summary / 4)}</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> History: {Math.round(stats.breakdown.history / 4)}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <pre className="flex-1 overflow-auto bg-gray-900 p-4 rounded text-xs md:text-sm font-mono whitespace-pre-wrap text-gray-300">
+                                            {content}
+                                        </pre>
+                                    </>
+                                );
+                            })()}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Chat Area */}
             {/* Chat Area */}
@@ -1024,6 +1143,6 @@ export default function ChatPage() {
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

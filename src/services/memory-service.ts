@@ -59,29 +59,53 @@ export const memoryService = {
             .slice(0, limit);
     },
 
-    async generateMemoryFromChat(characterId: number, chatHistory: { role: string, content: string }[]) {
-        // Use LLM to summarize and extract memory
-        const text = chatHistory.map(m => `${m.role}: ${m.content}`).join('\n');
-        const prompt = `Analyze the following chat history and extract a concise memory or fact about the user or the interaction that should be remembered for future context.
-        
-Rules:
-1. Only extract FACTS that are explicitly stated or demonstrated in the conversation.
-2. Do NOT infer feelings or thoughts unless explicitly stated.
-3. Do NOT make up events that did not happen in the text.
-4. If the user mentions a preference (e.g., "I like apples"), record it.
-5. If a significant event occurs (e.g., "User found a key"), record it.
-6. If nothing important happened, return "NONE".
+    async generateMemoryFromChat(
+        characterId: number,
+        chatHistory: { role: string, content: string, name?: string | null }[],
+        existingMemories: { content: string }[] = [],
+        lorebookContent: { content: string }[] = [],
+        personaName: string = 'User',
+        characterName: string = 'Assistant'
+    ) {
+        // Only analyze the last 6 messages (approx 3 turns) to capture the context of the new memory
+        const recentMessages = chatHistory.slice(-6);
+        const text = recentMessages.map(m => {
+            // Use the stored name in the message if available, otherwise fallback to current persona/character name
+            const roleName = m.name ? m.name : (m.role === 'user' ? personaName : characterName);
+            return `${roleName}: ${m.content}`;
+        }).join('\n');
 
-Chat History:
+        const existingContext = [
+            ...existingMemories.map(m => `- ${m.content}`),
+            ...lorebookContent.map(l => `- ${l.content}`)
+        ].join('\n');
+
+        const prompt = `Analyze the following RECENT dialogue and extract a NEW concise memory or fact about ${personaName} or the interaction that is NOT already known.
+
+Existing Knowledge (Do NOT repeat these):
+${existingContext || "None"}
+
+Recent Dialogue:
 ${text}
+
+Rules:
+1. Only extract NEW FACTS explicitly stated in the Recent Dialogue.
+2. Do NOT repeat facts from Existing Knowledge.
+3. Do NOT infer feelings or thoughts unless explicitly stated.
+4. If nothing NEW and IMPORTANT happened, return "NONE".
+5. Keep the memory concise (1 sentence).
 
 Memory:`;
 
         // We need a model. We can use the default one.
         const models = await llmService.getModels();
-        const model = models.length > 0 ? models[0].name : 'llama3:latest';
+        const model = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
-        const response = await llmService.chat(model, [{ role: 'user', content: prompt }]);
+        console.log('[Memory Service] Generating memory with model:', model);
+        console.log('[Memory Service] Temperature: 0.7');
+        console.log('[Memory Service] Prompt:\n', prompt);
+
+        const response = await llmService.chat(model, [{ role: 'user', content: prompt }], { temperature: 0.7 });
 
         if (response && !response.includes('NONE')) {
             // Generate keywords
@@ -93,5 +117,18 @@ Memory:`;
             return response;
         }
         return null;
+    },
+    async deleteMemory(id: number) {
+        return await db.delete(memories).where(eq(memories.id, id)).returning();
+    },
+
+    async updateMemory(id: number, content: string, keywords: string[]) {
+        return await db.update(memories)
+            .set({
+                content,
+                keywords: JSON.stringify(keywords)
+            })
+            .where(eq(memories.id, id))
+            .returning();
     }
 };

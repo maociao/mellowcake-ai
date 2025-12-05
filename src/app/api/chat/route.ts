@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         // 2. Save User Message
         const senderName = persona?.name || 'User';
         console.log(`[Chat API] Saving user message for session ${sessionId} as ${senderName}`);
-        await chatService.addMessage(sessionId, 'user', content, undefined, senderName);
+        const [userMsg] = await chatService.addMessage(sessionId, 'user', content, undefined, senderName);
 
         // 3. Get History
         const history = await chatService.getMessages(sessionId);
@@ -64,11 +64,8 @@ export async function POST(request: NextRequest) {
         let selectedModel = model;
         if (!selectedModel) {
             const models = await llmService.getModels();
-            if (models.length > 0) {
-                selectedModel = models[0].name;
-            } else {
-                selectedModel = 'llama3:latest'; // Fallback
-            }
+            // Prioritize 'stheno' model if available
+            selectedModel = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
         }
         console.log(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
 
@@ -76,26 +73,14 @@ export async function POST(request: NextRequest) {
         const modelInfo = await llmService.getModelInfo(selectedModel);
 
         // Use user preference (12288) or default to 8192
-        // Ideally this should be a setting. For now, we hardcode the user's request.
-        // Use user preference (12288) or default to 8192
-        // Ideally this should be a setting. For now, we hardcode the user's request.
         let contextLimit = 8192;
 
         // Check Context Usage & Summarize if needed (e.g., > 80% usage)
-        // We use a safe buffer. If prompt length > contextLimit * 0.8, we summarize.
-        // Note: prompt length is chars, contextLimit is tokens. Approx 3-4 chars per token.
-        // So safe limit in chars is contextLimit * 3 * 0.8
         const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.8; // Using 4 chars per token as a safer estimate
 
         if (rawPrompt.length > SAFE_CHAR_LIMIT) {
             console.log(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);
 
-            // Summarize the oldest 10 messages (excluding the very first if it's special, but here we just take first 10)
-            // We need to keep the system prompt and recent history intact.
-            // The history array passed to buildLlama3Prompt is the full history.
-
-            // We want to summarize the *oldest* messages in the history array.
-            // history[0] is the oldest.
             const MESSAGES_TO_SUMMARIZE = 10;
             if (history.length > MESSAGES_TO_SUMMARIZE + 5) { // Ensure we leave at least 5 recent messages
                 const chunk = history.slice(0, MESSAGES_TO_SUMMARIZE);
@@ -115,12 +100,6 @@ export async function POST(request: NextRequest) {
                 }
             }
         }
-
-        // Re-build prompt if summary changed? 
-        // For this request, we use the *current* state. The summary update will apply to the *next* turn.
-        // This is acceptable for a "lazy" summarization strategy.
-        // If we are ALREADY over the limit, the LLM might error.
-        // But usually we have some buffer.
 
         // Capture the prompt and metadata for debugging
         const promptUsed = JSON.stringify({
@@ -148,13 +127,19 @@ export async function POST(request: NextRequest) {
         console.log(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
         // 7. Generate new memory (async, don't block response)
-        // We can do this in background or just await it if fast enough. 
-        // For now, let's await it to ensure it works, but maybe only every few messages?
-        // Let's keep it simple for now and NOT generate automatically on every message to avoid latency.
-        // For testing, we are enabling it now.
-        memoryService.generateMemoryFromChat(character.id, history).catch(err => console.error('Memory generation failed:', err));
+        // 7. Generate new memory (async, don't block response)
+        // Only generate memory every 3 turns (6 messages) to avoid spamming and redundancy
+        // history.length is odd (1, 3, 5...) so (history.length + 1) is even (2, 4, 6...)
+        if ((history.length + 1) % 6 === 0) {
+            console.log(`[Chat API] Triggering memory generation (History length: ${history.length} + 1)`);
+            const currentPersonaName = persona?.name || 'User';
+            memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
+                .catch(err => console.error('Memory generation failed:', err));
+        } else {
+            console.log(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
+        }
 
-        return NextResponse.json(assistantMsg);
+        return NextResponse.json({ userMessage: userMsg, assistantMessage: assistantMsg });
 
     } catch (error) {
         console.error('[Chat API] Error in chat endpoint:', error);

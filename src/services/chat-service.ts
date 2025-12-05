@@ -138,9 +138,9 @@ Summary:`;
 
         // Use default model
         const models = await llmService.getModels();
-        const model = models.length > 0 ? models[0].name : 'llama3:latest';
+        const model = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
-        const summary = await llmService.chat(model, [{ role: 'user', content: prompt }]);
+        const summary = await llmService.chat(model, [{ role: 'user', content: prompt }], { temperature: 0.4 });
         return summary;
     },
 
