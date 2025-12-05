@@ -1,18 +1,28 @@
 import { db } from '@/lib/db';
 import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schema';
 import { llmService } from './llm-service';
+import { characterService } from './character-service';
 import { eq, desc, asc, gte, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
 export const chatService = {
-    async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[]) {
-        return await db.insert(chatSessions).values({
+    async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[], includeFirstMessage: boolean = true) {
+        const [session] = await db.insert(chatSessions).values({
             characterId,
             personaId,
             name,
             lorebooks: lorebooks ? JSON.stringify(lorebooks) : undefined,
         }).returning();
+
+        if (includeFirstMessage) {
+            const character = await characterService.getById(characterId);
+            if (character && character.firstMessage) {
+                await this.addMessage(session.id, 'assistant', character.firstMessage, undefined, character.name);
+            }
+        }
+
+        return [session];
     },
 
     async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[] }) {
@@ -50,7 +60,50 @@ export const chatService = {
             content,
             promptUsed,
             name,
+            swipes: JSON.stringify([content]),
+            currentIndex: 0,
         }).returning();
+    },
+
+    async addSwipe(messageId: number, content: string, promptUsed?: string) {
+        const msg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
+        if (!msg) return null;
+
+        const swipes = msg.swipes ? JSON.parse(msg.swipes) : [msg.content];
+        swipes.push(content);
+        const newIndex = swipes.length - 1;
+
+        return await db.update(chatMessages)
+            .set({
+                swipes: JSON.stringify(swipes),
+                currentIndex: newIndex,
+                content: content, // Set current content to the new swipe
+                promptUsed: promptUsed || msg.promptUsed
+            })
+            .where(eq(chatMessages.id, messageId))
+            .returning();
+    },
+
+    async navigateSwipe(messageId: number, direction: 'left' | 'right') {
+        const msg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
+        if (!msg) return null;
+
+        const swipes = msg.swipes ? JSON.parse(msg.swipes) : [msg.content];
+        if (swipes.length <= 1) return msg;
+
+        let newIndex = (msg.currentIndex || 0) + (direction === 'left' ? -1 : 1);
+
+        // Wrap around
+        if (newIndex < 0) newIndex = swipes.length - 1;
+        if (newIndex >= swipes.length) newIndex = 0;
+
+        return await db.update(chatMessages)
+            .set({
+                currentIndex: newIndex,
+                content: swipes[newIndex]
+            })
+            .where(eq(chatMessages.id, messageId))
+            .returning();
     },
 
     async getMessages(sessionId: number) {
@@ -67,7 +120,7 @@ export const chatService = {
     // Import from SillyTavern JSONL
     async importFromST(filePath: string, characterId: number, personaId?: number) {
         if (!fs.existsSync(filePath)) {
-            throw new Error(`File not found: ${filePath}`);
+            throw new Error(`File not found: ${filePath} `);
         }
 
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -86,7 +139,7 @@ export const chatService = {
         const sessionName = path.basename(filePath).replace('.jsonl', '');
 
         // Create session
-        const [session] = await this.createSession(characterId, personaId, sessionName);
+        const [session] = await this.createSession(characterId, personaId, sessionName, undefined, false);
 
         // Process messages (skip first line)
         const messages = lines.slice(1);
@@ -128,17 +181,17 @@ export const chatService = {
     async summarizeHistory(sessionId: number, messagesToSummarize: { role: string, content: string, name?: string | null }[]) {
         if (messagesToSummarize.length === 0) return null;
 
-        const text = messagesToSummarize.map(m => `${m.name || m.role}: ${m.content}`).join('\n');
-        const prompt = `Summarize the following chat history into a concise narrative paragraph (3-5 sentences) that captures the key events and information. Maintain the style and tone of the story.
+        const text = messagesToSummarize.map(m => `${m.name || m.role}: ${m.content} `).join('\n');
+        const prompt = `Summarize the following chat history into a concise narrative paragraph(3 - 5 sentences) that captures the key events and information.Maintain the style and tone of the story.
         
 Chat History:
 ${text}
 
-Summary:`;
+Summary: `;
 
         // Use default model
         const models = await llmService.getModels();
-        const model = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
         const summary = await llmService.chat(model, [{ role: 'user', content: prompt }], { temperature: 0.4 });
         return summary;
@@ -146,13 +199,6 @@ Summary:`;
 
     async deleteMessages(ids: number[]) {
         if (ids.length === 0) return;
-        // Drizzle doesn't support 'inArray' easily with delete without importing 'inArray' helper
-        // Let's import 'inArray' or just loop for now if small, but 'inArray' is better.
-        // I need to check imports.
-        // Actually, let's just use a raw loop or try to import inArray in next step if needed.
-        // Wait, I can import inArray at the top of the file.
-        // But I am in a replace_file_content block.
-        // I'll just use a loop for safety for now as it's only 10 items.
         for (const id of ids) {
             await db.delete(chatMessages).where(eq(chatMessages.id, id));
         }

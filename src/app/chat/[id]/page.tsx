@@ -11,6 +11,8 @@ interface Message {
     promptUsed?: string;
     name?: string;
     id?: number;
+    swipes?: string; // JSON string
+    currentIndex?: number;
 }
 
 interface CharacterDetails {
@@ -282,12 +284,7 @@ export default function ChatPage() {
             if (res.ok) {
                 const newSession = await res.json();
                 setSessions(prev => [newSession, ...prev]);
-                setCurrentSessionId(newSession.id);
-                setMessages([]);
-                setShowSessions(false);
-                if (character?.firstMessage) {
-                    setMessages([{ role: 'assistant', content: character.firstMessage }]);
-                }
+                await selectSession(newSession.id);
             }
         } catch (e) {
             console.error('Failed to create session', e);
@@ -512,7 +509,17 @@ export default function ChatPage() {
 
     // Helper to format message content (italics for *text*)
     const formatMessage = (content: string) => {
-        const parts = content.split(/(\*[^*]+\*)/g);
+        // Replace variables
+        let formatted = content;
+        if (character) {
+            formatted = formatted.replace(/{{char}}/gi, character.name);
+        }
+
+        const currentPersona = personas.find(p => p.id === selectedPersonaId);
+        const userName = currentPersona?.name || 'User';
+        formatted = formatted.replace(/{{user}}/gi, userName);
+
+        const parts = formatted.split(/(\*[^*]+\*)/g);
         return parts.map((part, index) => {
             if (part.startsWith('*') && part.endsWith('*')) {
                 return <em key={index} className="text-blue-200">{part.slice(1, -1)}</em>;
@@ -525,6 +532,44 @@ export default function ChatPage() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+
+
+    const handleRegenerate = async (messageId: number) => {
+        if (isLoading) return;
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/chat/regenerate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messageId })
+            });
+            if (res.ok) {
+                const updatedMsg = await res.json();
+                setMessages(prev => prev.map(m => (m.id === messageId ? updatedMsg : m)));
+            }
+        } catch (e) {
+            console.error('Failed to regenerate', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSwipe = async (messageId: number, direction: 'left' | 'right') => {
+        try {
+            const res = await fetch(`/api/messages/${messageId}/swipe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction })
+            });
+            if (res.ok) {
+                const updatedMsg = await res.json();
+                setMessages(prev => prev.map(m => (m.id === messageId ? updatedMsg : m)));
+            }
+        } catch (e) {
+            console.error('Failed to swipe', e);
+        }
+    };
 
     const deleteMessage = async (id: number) => {
         if (!confirm('Are you sure you want to delete this message? All subsequent messages will also be deleted.')) return;
@@ -650,7 +695,7 @@ export default function ChatPage() {
                                     ) : (
                                         <button
                                             onClick={() => selectSession(session.id)}
-                                            className={`flex-1 text-left p-3 rounded-lg border ${currentSessionId === session.id ? 'border-blue-500 bg-blue-900/20' : 'border-gray-700 hover:bg-gray-700'}`}
+                                            className={`flex-1 min-w-0 text-left p-3 rounded-lg border ${currentSessionId === session.id ? 'border-blue-500 bg-blue-900/20' : 'border-gray-700 hover:bg-gray-700'}`}
                                         >
                                             <div className="font-medium truncate">{session.name || `Session ${session.id}`}</div>
                                             <div className="text-xs text-gray-400">{new Date(session.updatedAt).toLocaleString()}</div>
@@ -1077,6 +1122,38 @@ export default function ChatPage() {
                                     >
                                         View Prompt
                                     </button>
+                                )}
+
+                                {/* Swipe & Regenerate Controls */}
+                                {msg.role === 'assistant' && msg.id && (
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600/50">
+                                        <div className="flex items-center gap-1">
+                                            {msg.swipes && JSON.parse(msg.swipes).length > 1 && (
+                                                <>
+                                                    <button onClick={() => handleSwipe(msg.id!, 'left')} className="p-1 hover:text-white text-gray-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                            <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        {(msg.currentIndex || 0) + 1}/{JSON.parse(msg.swipes).length}
+                                                    </span>
+                                                    <button onClick={() => handleSwipe(msg.id!, 'right')} className="p-1 hover:text-white text-gray-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                        {idx === messages.length - 1 && (
+                                            <button onClick={() => handleRegenerate(msg.id!)} className="p-1 hover:text-white text-gray-400" title="Regenerate">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                                 <button
                                     onClick={() => deleteMessage((msg as any).id)}

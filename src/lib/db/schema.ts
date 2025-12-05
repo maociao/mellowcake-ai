@@ -43,6 +43,8 @@ export const chatMessages = sqliteTable('chat_messages', {
     originalContent: text('original_content'), // In case of edits
     promptUsed: text('prompt_used'), // For debugging/logging what was sent to LLM
     name: text('name'), // Name of the sender at the time of the message (for multi-persona history)
+    swipes: text('swipes'), // JSON string array of alternative contents
+    currentIndex: integer('current_index').default(0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
