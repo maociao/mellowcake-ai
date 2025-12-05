@@ -1008,15 +1008,15 @@ export default function ChatPage() {
                                                 </div>
                                                 <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden flex">
                                                     <div style={{ width: `${(stats.breakdown.system / 4 / stats.contextLimit) * 100}%` }} className="bg-red-500 h-full" title={`System: ${Math.round(stats.breakdown.system / 4)} tokens`} />
-                                                    <div style={{ width: `${(stats.breakdown.memories / 4 / stats.contextLimit) * 100}%` }} className="bg-yellow-500 h-full" title={`Memories: ${Math.round(stats.breakdown.memories / 4)} tokens`} />
                                                     <div style={{ width: `${(stats.breakdown.lorebook / 4 / stats.contextLimit) * 100}%` }} className="bg-green-500 h-full" title={`Lorebook: ${Math.round(stats.breakdown.lorebook / 4)} tokens`} />
+                                                    <div style={{ width: `${(stats.breakdown.memories / 4 / stats.contextLimit) * 100}%` }} className="bg-yellow-500 h-full" title={`Memories: ${Math.round(stats.breakdown.memories / 4)} tokens`} />
                                                     <div style={{ width: `${(stats.breakdown.summary / 4 / stats.contextLimit) * 100}%` }} className="bg-purple-500 h-full" title={`Summary: ${Math.round(stats.breakdown.summary / 4)} tokens`} />
                                                     <div style={{ width: `${(stats.breakdown.history / 4 / stats.contextLimit) * 100}%` }} className="bg-blue-500 h-full" title={`History: ${Math.round(stats.breakdown.history / 4)} tokens`} />
                                                 </div>
                                                 <div className="flex flex-wrap gap-4 text-xs">
                                                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> System: {Math.round(stats.breakdown.system / 4)}</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Memories: {Math.round(stats.breakdown.memories / 4)}</div>
                                                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Lorebook: {Math.round(stats.breakdown.lorebook / 4)}</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Memories: {Math.round(stats.breakdown.memories / 4)}</div>
                                                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500" /> Summary: {Math.round(stats.breakdown.summary / 4)}</div>
                                                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> History: {Math.round(stats.breakdown.history / 4)}</div>
                                                 </div>

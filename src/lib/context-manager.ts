@@ -112,30 +112,7 @@ export const contextManager = {
             systemPromptParts.push(`[User Persona]\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
         }
 
-        if (relevantMemories.length > 0) {
-            const memoryText = relevantMemories.map(m => {
-                // Calculate time ago
-                const date = new Date(m.createdAt || new Date());
-                const now = new Date();
-                const diffMs = now.getTime() - date.getTime();
-
-                const diffSec = Math.floor(diffMs / 1000);
-                const diffMin = Math.floor(diffSec / 60);
-                const diffHour = Math.floor(diffMin / 60);
-                const diffDay = Math.floor(diffHour / 24);
-
-                let timeAgo = '';
-                if (diffDay > 0) timeAgo = `${diffDay}d ago`;
-                else if (diffHour > 0) timeAgo = `${diffHour}h ago`;
-                else if (diffMin > 0) timeAgo = `${diffMin}m ago`;
-                else timeAgo = 'just now';
-
-                return `[${timeAgo}] ${replaceVariables(m.content)}`;
-            }).join('\n');
-            systemPromptParts.push(`[Memories]\n${memoryText}`);
-        }
-
-        // Lorebook Injection
+        // Lorebook Injection (World Info)
         if (lorebookContent && lorebookContent.length > 0) {
             // Sort by createdAt ascending (oldest to newest)
             const sortedEntries = [...lorebookContent].sort((a, b) =>
@@ -167,6 +144,35 @@ export const contextManager = {
             });
 
             systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
+        }
+
+        // Memories Injection
+        if (relevantMemories.length > 0) {
+            // Sort by createdAt ascending (oldest to newest)
+            const sortedMemories = [...relevantMemories].sort((a, b) =>
+                new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+            );
+
+            const memoryText = sortedMemories.map(m => {
+                // Calculate time ago
+                const date = new Date(m.createdAt || new Date());
+                const now = new Date();
+                const diffMs = now.getTime() - date.getTime();
+
+                const diffSec = Math.floor(diffMs / 1000);
+                const diffMin = Math.floor(diffSec / 60);
+                const diffHour = Math.floor(diffMin / 60);
+                const diffDay = Math.floor(diffHour / 24);
+
+                let timeAgo = '';
+                if (diffDay > 0) timeAgo = `${diffDay}d ago`;
+                else if (diffHour > 0) timeAgo = `${diffHour}h ago`;
+                else if (diffMin > 0) timeAgo = `${diffMin}m ago`;
+                else timeAgo = 'just now';
+
+                return `[${timeAgo}] ${replaceVariables(m.content)}`;
+            }).join('\n');
+            systemPromptParts.push(`[Memories]\n${memoryText}`);
         }
 
         if (character.systemPrompt) systemPromptParts.push(replaceVariables(character.systemPrompt));

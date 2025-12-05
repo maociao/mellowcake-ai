@@ -97,6 +97,37 @@ export async function POST(request: NextRequest) {
                     const idsToDelete = chunk.map(m => m.id);
                     await chatService.deleteMessages(idsToDelete);
                     console.log(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
+
+                    // Persist summary to Lorebook if available
+                    if (lorebooks && lorebooks.length > 0) {
+                        try {
+                            // Generate keywords for the summary
+                            console.log('[Chat API] Generating keywords for summary...');
+                            const keywordPrompt = `Extract 3-5 comma-separated keywords for this summary: "${summaryText}"`;
+                            const keywordRes = await llmService.chat(selectedModel, [{ role: 'user', content: keywordPrompt }]);
+                            const keywords = keywordRes ? keywordRes.split(',').map((k: string) => k.trim()) : ['summary'];
+                            const keywordJson = JSON.stringify(keywords);
+
+                            // Find all lorebooks
+                            const allLorebooks = await lorebookService.getAll();
+
+                            // Iterate through all active lorebooks
+                            for (const bookName of lorebooks) {
+                                const targetBook = allLorebooks.find(b => b.name === bookName);
+                                if (targetBook) {
+                                    console.log(`[Chat API] Persisting summary to lorebook: ${targetBook.name}`);
+                                    await lorebookService.addEntry(targetBook.id, {
+                                        content: summaryText,
+                                        keywords: keywordJson,
+                                        enabled: true,
+                                        label: `Summary ${new Date().toLocaleDateString()}`
+                                    });
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[Chat API] Failed to persist summary to lorebook:', err);
+                        }
+                    }
                 }
             }
         }
