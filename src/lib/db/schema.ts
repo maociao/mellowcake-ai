@@ -20,6 +20,7 @@ export const personas = sqliteTable('personas', {
     name: text('name').notNull(),
     description: text('description'),
     avatarPath: text('avatar_path'),
+    characterId: integer('character_id').references(() => characters.id), // Optional link to a character for shared memories
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
@@ -77,6 +78,7 @@ export const lorebookEntries = sqliteTable('lorebook_entries', {
     label: text('label'), // from 'comment'
     content: text('content').notNull(),
     keywords: text('keywords'), // JSON string array
+    weight: integer('weight').default(5), // Priority 1-10
     enabled: integer('enabled', { mode: 'boolean' }).default(true),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

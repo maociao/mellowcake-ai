@@ -39,6 +39,7 @@ interface Persona {
     name: string;
     description?: string;
     avatarPath?: string;
+    characterId?: number;
 }
 
 interface LorebookEntry {
@@ -46,6 +47,7 @@ interface LorebookEntry {
     label: string;
     content: string;
     keywords: string; // JSON string
+    weight: number;
     enabled: boolean;
 }
 
@@ -62,6 +64,7 @@ export default function ChatPage() {
     const router = useRouter();
 
     const [character, setCharacter] = useState<CharacterDetails | null>(null);
+    const [allCharacters, setAllCharacters] = useState<CharacterDetails[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -200,6 +203,12 @@ export default function ChatPage() {
             if (charRes.ok) {
                 const charData = await charRes.json();
                 setCharacter(charData);
+
+                // 1b. Get All Characters (for linking)
+                const allCharsRes = await fetch('/api/characters');
+                if (allCharsRes.ok) {
+                    setAllCharacters(await allCharsRes.json());
+                }
 
                 // 2. Get Sessions
                 const sessionsRes = await fetch(`/api/chats?characterId=${characterId}`);
@@ -386,7 +395,14 @@ export default function ChatPage() {
     const savePersona = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        const data = Object.fromEntries(formData.entries());
+        const data: any = Object.fromEntries(formData.entries());
+
+        // Handle characterId
+        if (data.characterId) {
+            data.characterId = parseInt(data.characterId as string);
+        } else {
+            data.characterId = null;
+        }
 
         try {
             let res;
@@ -465,6 +481,7 @@ export default function ChatPage() {
             label: formData.get('label') as string,
             content: formData.get('content') as string,
             keywords: JSON.stringify((formData.get('keywords') as string).split(',').map(k => k.trim()).filter(k => k)),
+            weight: parseInt(formData.get('weight') as string) || 5,
             enabled: formData.get('enabled') === 'on'
         };
 
@@ -895,8 +912,16 @@ export default function ChatPage() {
                                     <textarea name="description" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.description : ''} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Avatar Path / URL</label>
                                     <input name="avatarPath" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.avatarPath : ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="/personas/my-avatar.png" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Linked Character (for memories)</label>
+                                    <select name="characterId" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.characterId || '' : ''} className="w-full bg-gray-700 rounded p-2 text-white">
+                                        <option value="">None</option>
+                                        {allCharacters.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="flex justify-end space-x-2">
                                     <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
@@ -992,6 +1017,15 @@ export default function ChatPage() {
                                                     <h4 className="font-bold mb-4">{editingEntry === 'new' ? 'New Entry' : 'Edit Entry'}</h4>
                                                     <form onSubmit={saveEntry} className="space-y-4">
                                                         <div>
+                                                            <label className="block text-sm font-medium text-gray-400">Title (Label)</label>
+                                                            <input
+                                                                name="label"
+                                                                defaultValue={typeof editingEntry !== 'string' ? editingEntry.label || '' : ''}
+                                                                className="w-full bg-gray-800 rounded p-2 text-white"
+                                                                placeholder="e.g. The Great War, Magic System..."
+                                                            />
+                                                        </div>
+                                                        <div>
                                                             <label className="block text-sm font-medium text-gray-400">Content</label>
                                                             <textarea name="content" defaultValue={typeof editingEntry !== 'string' ? editingEntry.content : ''} rows={4} className="w-full bg-gray-800 rounded p-2 text-white" required />
                                                         </div>
@@ -1002,6 +1036,17 @@ export default function ChatPage() {
                                                                 defaultValue={typeof editingEntry !== 'string' ? JSON.parse(editingEntry.keywords || '[]').join(', ') : ''}
                                                                 className="w-full bg-gray-800 rounded p-2 text-white"
                                                                 placeholder="keyword1, keyword2, phrase three"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-400">Weight (1-10)</label>
+                                                            <input
+                                                                type="number"
+                                                                name="weight"
+                                                                min="1"
+                                                                max="10"
+                                                                defaultValue={typeof editingEntry !== 'string' ? editingEntry.weight || 5 : 5}
+                                                                className="w-full bg-gray-800 rounded p-2 text-white"
                                                             />
                                                         </div>
                                                         <div className="flex items-center">

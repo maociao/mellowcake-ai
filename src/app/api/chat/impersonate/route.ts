@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
 
         const memories = await memoryService.searchMemories(character.id, query);
 
+        // If persona is linked to a character, fetch their memories too
+        if (persona && (persona as any).characterId) {
+            console.log(`[Impersonate API] Fetching linked memories for character ${(persona as any).characterId}`);
+            const linkedMemories = await memoryService.searchMemories((persona as any).characterId, query);
+            if (linkedMemories.length > 0) {
+                console.log(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
+                // Add them to the list
+                memories.push(...linkedMemories);
+            }
+        }
+
         // Scan Lorebooks (using last 3 messages)
         let lorebookContent: { content: string; createdAt: string }[] = [];
         if (session.lorebooks) {

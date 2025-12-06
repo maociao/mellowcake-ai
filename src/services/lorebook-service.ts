@@ -63,7 +63,7 @@ export const lorebookService = {
             }
         });
 
-        const matches: { content: string; createdAt: string }[] = [];
+        const matches: { content: string; createdAt: string; weight: number }[] = [];
         const lowerText = text.toLowerCase();
 
         for (const book of books) {
@@ -76,7 +76,8 @@ export const lorebookService = {
                         if (isMatch) {
                             matches.push({
                                 content: entry.content,
-                                createdAt: entry.createdAt || new Date().toISOString()
+                                createdAt: entry.createdAt || new Date().toISOString(),
+                                weight: (entry as any).weight || 5
                             });
                         }
                     }
@@ -85,6 +86,15 @@ export const lorebookService = {
                 }
             }
         }
+
+        // Sort by Weight DESC, then CreatedAt ASC (older first)
+        matches.sort((a, b) => {
+            if (a.weight !== b.weight) {
+                return b.weight - a.weight; // Higher weight first
+            }
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); // Older first
+        });
+
         return matches;
     }
 };
