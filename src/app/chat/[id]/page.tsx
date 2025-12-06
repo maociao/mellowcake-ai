@@ -1236,7 +1236,11 @@ export default function ChatPage() {
                     </button>
                     <textarea
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        onChange={(e) => {
+                            setInput(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
@@ -1244,9 +1248,9 @@ export default function ChatPage() {
                             }
                         }}
                         placeholder="Type a message..."
-                        className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none max-h-32 py-2 px-2"
-                        rows={1}
-                        style={{ minHeight: '44px' }}
+                        className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none max-h-48 py-2 px-2"
+                        rows={3}
+                        style={{ minHeight: '88px' }}
                     />
                     <button
                         onClick={sendMessage}

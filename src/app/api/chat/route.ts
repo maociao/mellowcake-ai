@@ -159,10 +159,10 @@ export async function POST(request: NextRequest) {
 
         // 7. Generate new memory (async, don't block response)
         // 7. Generate new memory (async, don't block response)
-        // Only generate memory every 3 turns (6 messages) to avoid spamming and redundancy
-        // history.length is odd (1, 3, 5...) so (history.length + 1) is even (2, 4, 6...)
-        if ((history.length + 1) % 6 === 0) {
-            console.log(`[Chat API] Triggering memory generation (History length: ${history.length} + 1)`);
+        // Only generate memory every 3 turns (every 3rd user message)
+        const userMsgCount = history.filter(m => m.role === 'user').length;
+        if (userMsgCount > 0 && userMsgCount % 3 === 0) {
+            console.log(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
             const currentPersonaName = persona?.name || 'User';
             memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
                 .catch(err => console.error('Memory generation failed:', err));

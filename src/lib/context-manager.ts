@@ -97,7 +97,9 @@ export const contextManager = {
         // --- System Prompt Construction ---
         const systemPromptParts = [];
         // Inverted Role: You are {{user}}. Reply as {{user}} only.
-        systemPromptParts.push(`Main: You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+        systemPromptParts.push(`[Main]`);
+        systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+        systemPromptParts.push(`Responses should be short and conversational.`);
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
         // Persona Description (This is now the "Self" description)
@@ -132,7 +134,7 @@ export const contextManager = {
         const systemContent = systemPromptParts.join('\n');
 
         // --- Llama 3 Formatting ---
-        let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
+        let prompt = `<|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
 
         // --- History ---
         if (summary) {
@@ -196,7 +198,9 @@ export const contextManager = {
         const systemPromptParts = [];
         // Standard Llama 3 System Header
         // "You are {{char}}. Reply as {{char}} only..."
-        systemPromptParts.push(`Main: You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+        systemPromptParts.push(`[Main]`);
+        systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+        systemPromptParts.push(`Responses should be short and conversational.`);
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
         if (character.description) systemPromptParts.push(replaceVariables(character.description));
@@ -209,6 +213,8 @@ export const contextManager = {
             // Let's stick to a simple description for now or append to system.
             systemPromptParts.push(`[User Persona]\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
         }
+
+        if (character.systemPrompt) systemPromptParts.push(replaceVariables(character.systemPrompt));
 
         // Lorebook Injection (World Info)
         if (lorebookContent && lorebookContent.length > 0) {
@@ -273,12 +279,10 @@ export const contextManager = {
             systemPromptParts.push(`[Memories]\n${memoryText}`);
         }
 
-        if (character.systemPrompt) systemPromptParts.push(replaceVariables(character.systemPrompt));
-
         const systemContent = systemPromptParts.join('\n');
 
         // --- Llama 3 Formatting ---
-        let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
+        let prompt = `<|start_header_id|>system<|end_header_id|>\n${systemContent}<|eot_id|>`;
 
         // --- History ---
         // Inject Summary if exists
