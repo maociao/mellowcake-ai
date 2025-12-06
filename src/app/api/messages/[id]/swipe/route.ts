@@ -11,11 +11,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             return new NextResponse('Invalid parameters', { status: 400 });
         }
 
-        const [updatedMessage] = await chatService.navigateSwipe(parseInt(id), direction);
+        const result = await chatService.navigateSwipe(parseInt(id), direction);
 
-        if (!updatedMessage) {
+        if (!result || result.length === 0) {
             return new NextResponse('Message not found', { status: 404 });
         }
+
+        const updatedMessage = result[0];
 
         return NextResponse.json(updatedMessage);
     } catch (error) {

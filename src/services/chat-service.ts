@@ -3,8 +3,6 @@ import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schem
 import { llmService } from './llm-service';
 import { characterService } from './character-service';
 import { eq, desc, asc, gte, and } from 'drizzle-orm';
-import fs from 'fs';
-import path from 'path';
 
 export const chatService = {
     async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[], includeFirstMessage: boolean = true) {
@@ -89,7 +87,7 @@ export const chatService = {
         if (!msg) return null;
 
         const swipes = msg.swipes ? JSON.parse(msg.swipes) : [msg.content];
-        if (swipes.length <= 1) return msg;
+        if (swipes.length <= 1) return [msg];
 
         let newIndex = (msg.currentIndex || 0) + (direction === 'left' ? -1 : 1);
 
@@ -117,44 +115,7 @@ export const chatService = {
         return await db.delete(chatSessions).where(eq(chatSessions.id, id));
     },
 
-    // Import from SillyTavern JSONL
-    async importFromST(filePath: string, characterId: number, personaId?: number) {
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`File not found: ${filePath} `);
-        }
 
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const lines = content.split('\n').filter(line => line.trim() !== '');
-
-        if (lines.length === 0) return null;
-
-        // First line is metadata
-        let metadata: any = {};
-        try {
-            metadata = JSON.parse(lines[0]);
-        } catch (e) {
-            console.warn('Failed to parse metadata line, skipping import of metadata');
-        }
-
-        const sessionName = path.basename(filePath).replace('.jsonl', '');
-
-        // Create session
-        const [session] = await this.createSession(characterId, personaId, sessionName, undefined, false);
-
-        // Process messages (skip first line)
-        const messages = lines.slice(1);
-        for (const line of messages) {
-            try {
-                const msg = JSON.parse(line);
-                const role = msg.is_user ? 'user' : 'assistant';
-                await this.addMessage(session.id, role, msg.mes, msg.prompt);
-            } catch (e) {
-                console.error('Error parsing message line:', e);
-            }
-        }
-
-        return session;
-    },
 
     async deleteMessageFrom(messageId: number) {
         // 1. Get the message to find its session and creation time/id

@@ -99,7 +99,7 @@ Memory:`;
 
         // We need a model. We can use the default one.
         const models = await llmService.getModels();
-        const model = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
         console.log('[Memory Service] Generating memory with model:', model);
         console.log('[Memory Service] Temperature: 0.7');
