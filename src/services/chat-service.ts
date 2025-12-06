@@ -182,7 +182,7 @@ export const chatService = {
         if (messagesToSummarize.length === 0) return null;
 
         const text = messagesToSummarize.map(m => `${m.name || m.role}: ${m.content} `).join('\n');
-        const prompt = `Summarize the following chat history into a concise narrative paragraph(3 - 5 sentences) that captures the key events and information.Maintain the style and tone of the story.
+        const prompt = `Summarize the following chat history into a concise narrative paragraph(3 - 5 sentences) that captures the key events and information. Maintain the style and tone of the story.
         
 Chat History:
 ${text}

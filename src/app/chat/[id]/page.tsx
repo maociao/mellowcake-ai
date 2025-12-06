@@ -176,11 +176,14 @@ export default function ChatPage() {
                         <div key={mem.id} className="bg-gray-700 p-3 rounded flex justify-between items-start group">
                             <div>
                                 <div className="text-sm text-white mb-1">{mem.content}</div>
-                                <div className="text-xs text-gray-400 font-mono">
+                                <div className="text-xs text-gray-400 font-mono mb-1">
                                     {JSON.parse(mem.keywords || '[]').join(', ')}
                                 </div>
+                                <div className="text-[10px] text-gray-500">
+                                    {new Date(mem.createdAt).toLocaleString()}
+                                </div>
                             </div>
-                            <button onClick={() => deleteMemory(mem.id)} className="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => deleteMemory(mem.id)} className="text-red-400 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                 </svg>
@@ -996,10 +999,14 @@ export default function ChatPage() {
                                                                 <div className="flex items-center gap-2 mb-1">
                                                                     <span className={`w-2 h-2 rounded-full ${entry.enabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                                                     <span className="font-bold text-sm">{entry.label || 'No Label'}</span>
+                                                                    <span className="text-xs bg-gray-600 px-1 rounded text-gray-300" title="Weight">W: {entry.weight || 5}</span>
                                                                 </div>
                                                                 <div className="text-xs text-gray-300 line-clamp-2 mb-1">{entry.content}</div>
-                                                                <div className="text-xs text-gray-500 font-mono">
+                                                                <div className="text-xs text-gray-500 font-mono mb-1">
                                                                     {JSON.parse(entry.keywords || '[]').join(', ')}
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-500">
+                                                                    {(entry as any).createdAt ? new Date((entry as any).createdAt).toLocaleString() : 'Unknown Date'}
                                                                 </div>
                                                             </div>
                                                             <div className="flex flex-col gap-2">
