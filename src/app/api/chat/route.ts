@@ -141,7 +141,8 @@ export async function POST(request: NextRequest) {
         });
 
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
-            stop: ['<|eot_id|>', `${persona?.name || 'User'}:`] // Stop tokens to prevent self-conversation
+            stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
+            temperature: 1.12
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 

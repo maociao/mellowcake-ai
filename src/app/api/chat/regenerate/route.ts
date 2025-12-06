@@ -73,9 +73,10 @@ export async function POST(request: NextRequest) {
         const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary);
 
         // 5. Call LLM
+        // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
         const models = await llmService.getModels();
-        const selectedModel = models.find(m => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        const selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
         // Get model info for context size
         const modelInfo = await llmService.getModelInfo(selectedModel);
@@ -90,7 +91,8 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}`);
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
-            stop: ['<|eot_id|>', `${persona?.name || 'User'}:`]
+            stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
+            temperature: 1.12
         });
 
         // Strip character name prefix
@@ -103,8 +105,13 @@ export async function POST(request: NextRequest) {
 
         // 6. Add as Swipe
         console.log(`[Regenerate API] Adding swipe to message ${messageId}`);
-        const [updatedMessage] = await chatService.addSwipe(messageId, responseContent, promptUsed);
+        const updatedMessages = await chatService.addSwipe(messageId, responseContent, promptUsed);
 
+        if (!updatedMessages) {
+            return new NextResponse('Failed to update message', { status: 500 });
+        }
+
+        const [updatedMessage] = updatedMessages;
         return NextResponse.json(updatedMessage);
 
     } catch (error) {
