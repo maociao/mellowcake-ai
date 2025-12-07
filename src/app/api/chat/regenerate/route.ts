@@ -6,6 +6,7 @@ import { llmService } from '@/services/llm-service';
 import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
+import { trimResponse } from '@/lib/text-utils';
 
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
@@ -92,7 +93,8 @@ export async function POST(request: NextRequest) {
         console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}`);
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
-            temperature: 1.12
+            temperature: 1.12,
+            num_predict: 200
         });
 
         // Strip character name prefix
@@ -102,6 +104,9 @@ export async function POST(request: NextRequest) {
         } else if (responseContent.trim().startsWith(`${character.name}: `)) {
             responseContent = responseContent.trim().substring(`${character.name}: `.length).trim();
         }
+
+        // Trim response
+        responseContent = trimResponse(responseContent);
 
         // 6. Add as Swipe
         console.log(`[Regenerate API] Adding swipe to message ${messageId}`);

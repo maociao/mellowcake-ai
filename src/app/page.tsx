@@ -8,6 +8,7 @@ interface Character {
   id: number;
   name: string;
   avatarPath: string;
+  defaultVideoPath?: string | null;
 }
 
 export default function Home() {
@@ -46,11 +47,70 @@ export default function Home() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {characters.map((char) => (
-          <Link
-            href={`/chat/${char.id}`}
+          <div
             key={char.id}
-            className="group relative block aspect-[3/4] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-transform hover:scale-105"
+            className="group relative block aspect-[3/4] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-transform hover:scale-105 cursor-pointer"
+            onMouseEnter={(e) => {
+              const video = e.currentTarget.querySelector('video');
+              if (video) video.play();
+            }}
+            onMouseLeave={(e) => {
+              const video = e.currentTarget.querySelector('video');
+              if (video) {
+                video.pause();
+                video.currentTime = 0;
+              }
+            }}
+            onClick={(e) => {
+              // Mobile tap logic
+              const isMobile = window.matchMedia('(max-width: 768px)').matches;
+              if (isMobile) {
+                const video = e.currentTarget.querySelector('video');
+                if (video) {
+                  if (video.paused) {
+                    video.play();
+                  } else {
+                    // If playing, second tap navigates
+                    // But we need to distinguish between "pause" and "navigate"
+                    // User said: "first press ... plays ... double tap starts chat"
+                    // Double tap is hard to detect with just onClick without delay.
+                    // Let's implement: Tap -> Toggle Play. Double Tap -> Navigate.
+                    // We can use a custom hook or just check time between clicks.
+                    // For now, let's just use the Link component but prevent default if we want to play?
+                    // Actually, wrapping in Link makes it navigate immediately.
+                    // I should remove Link wrapper and handle navigation programmatically.
+                  }
+                }
+              }
+            }}
           >
+            <Link href={`/chat/${char.id}`}
+              onClick={(e) => {
+                const isMobile = window.matchMedia('(max-width: 768px)').matches;
+                if (isMobile) {
+                  // Check for double tap
+                  const now = Date.now();
+                  const lastClick = (e.currentTarget as any).lastClick || 0;
+                  if (now - lastClick < 300) {
+                    // Double tap - allow navigation
+                    return;
+                  }
+
+                  // Single tap - toggle video
+                  e.preventDefault();
+                  (e.currentTarget as any).lastClick = now;
+
+                  const container = e.currentTarget.closest('div');
+                  const video = container?.querySelector('video');
+                  if (video) {
+                    if (video.paused) video.play();
+                    else video.pause();
+                  }
+                }
+              }}
+              className="absolute inset-0 z-10"
+            />
+
             <Image
               src={char.avatarPath || '/placeholder.png'}
               alt={char.name}
@@ -59,12 +119,25 @@ export default function Home() {
               sizes="(max-width: 768px) 50vw, 33vw"
               unoptimized
             />
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-10">
+
+            {/* Video Layer */}
+            {char.defaultVideoPath && (
+              <video
+                src={char.defaultVideoPath}
+                className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                loop
+                muted
+                playsInline
+                onPlay={(e) => e.currentTarget.classList.remove('opacity-0')}
+                onPause={(e) => e.currentTarget.classList.add('opacity-0')}
+              />
+            )}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-10 pointer-events-none">
               <h2 className="text-white font-semibold text-sm truncate">
                 {char.name}
               </h2>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
 

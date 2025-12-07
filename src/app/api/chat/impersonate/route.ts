@@ -6,6 +6,7 @@ import { llmService } from '@/services/llm-service';
 import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
+import { trimResponse } from '@/lib/text-utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -90,7 +91,8 @@ export async function POST(request: NextRequest) {
 
         const responseContent = await llmService.generate(model, prompt, {
             stop: ['<|eot_id|>', `${character.name}:`], // Stop if it tries to generate character response
-            temperature: 1.12
+            temperature: 1.12,
+            num_predict: 200
         });
 
         // Clean up response
@@ -99,6 +101,9 @@ export async function POST(request: NextRequest) {
         if (cleaned.startsWith(prefix)) {
             cleaned = cleaned.substring(prefix.length).trim();
         }
+
+        // Trim response
+        cleaned = trimResponse(cleaned);
 
         return NextResponse.json({ content: cleaned });
 

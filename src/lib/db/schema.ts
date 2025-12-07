@@ -94,3 +94,11 @@ export const lorebookEntriesRelations = relations(lorebookEntries, ({ one }) => 
         references: [lorebooks.id],
     }),
 }));
+
+export const characterVideos = sqliteTable('character_videos', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    characterId: integer('character_id').references(() => characters.id, { onDelete: 'cascade' }).notNull(),
+    filePath: text('file_path').notNull(),
+    isDefault: integer('is_default', { mode: 'boolean' }).default(false),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});

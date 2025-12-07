@@ -92,7 +92,7 @@ export default function ChatPage() {
 
     // Prompt Inspection State
     const [viewingPrompt, setViewingPrompt] = useState<string | null>(null);
-    const [charEditTab, setCharEditTab] = useState<'details' | 'memories'>('details');
+    const [charEditTab, setCharEditTab] = useState<'details' | 'memories' | 'videos'>('details');
 
     // --- Memory Editor Component ---
     function MemoryEditor({ characterId }: { characterId: number }) {
@@ -191,6 +191,149 @@ export default function ChatPage() {
                         </div>
                     ))}
                     {!loading && memories.length === 0 && <p className="text-gray-500 text-center">No memories found.</p>}
+                </div>
+            </div>
+        );
+    }
+
+    // --- Video Manager Component ---
+    function VideoManager({ characterId }: { characterId: number }) {
+        const [videos, setVideos] = useState<any[]>([]);
+        const [loading, setLoading] = useState(true);
+        const [generating, setGenerating] = useState(false);
+        const [status, setStatus] = useState<string>('');
+
+        useEffect(() => {
+            fetchVideos();
+        }, [characterId]);
+
+        const fetchVideos = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`/api/videos?characterId=${characterId}`);
+                if (res.ok) setVideos(await res.json());
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const generateVideo = async () => {
+            if (generating) return;
+            setGenerating(true);
+            setStatus('Initializing generation...');
+            try {
+                const res = await fetch('/api/videos/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ characterId })
+                });
+
+                if (!res.ok) throw new Error('Failed to start generation');
+
+                const { promptId } = await res.json();
+                setStatus('Queued in ComfyUI...');
+
+                // Poll for status
+                const poll = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch(`/api/videos/status?promptId=${promptId}&characterId=${characterId}`);
+                        const statusData = await statusRes.json();
+
+                        if (statusData.status === 'completed') {
+                            clearInterval(poll);
+                            setGenerating(false);
+                            setStatus('Generation complete!');
+                            fetchVideos();
+                            setTimeout(() => setStatus(''), 3000);
+                        } else if (statusData.status === 'failed' || statusData.status === 'unknown') {
+                            clearInterval(poll);
+                            setGenerating(false);
+                            setStatus(`Generation failed: ${statusData.error || 'Unknown error'}`);
+                        } else {
+                            setStatus('Generating... (this may take a few minutes)');
+                        }
+                    } catch (e) {
+                        console.error('Polling error', e);
+                    }
+                }, 5000); // Poll every 5 seconds
+
+            } catch (e: any) {
+                console.error(e);
+                setGenerating(false);
+                setStatus(`Error: ${e.message}`);
+            }
+        };
+
+        const deleteVideo = async (id: number) => {
+            if (!confirm('Delete this video?')) return;
+            try {
+                const res = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+                if (res.ok) fetchVideos();
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const setDefault = async (id: number) => {
+            try {
+                const res = await fetch(`/api/videos/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isDefault: true })
+                });
+                if (res.ok) fetchVideos();
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        return (
+            <div className="space-y-4">
+                <div className="bg-gray-700 p-4 rounded">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold">Character Videos</h4>
+                        <button
+                            onClick={generateVideo}
+                            disabled={generating}
+                            className={`px-4 py-2 rounded text-white text-sm ${generating ? 'bg-gray-500 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500'}`}
+                        >
+                            {generating ? 'Generating...' : 'Generate New Video'}
+                        </button>
+                    </div>
+                    {status && <div className="text-sm text-yellow-400 mb-4 animate-pulse">{status}</div>}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+                        {loading ? <p className="text-gray-400">Loading...</p> : videos.map(video => (
+                            <div key={video.id} className="bg-gray-800 p-2 rounded relative group">
+                                <video
+                                    src={video.filePath}
+                                    className="w-full aspect-[3/2] object-cover rounded bg-black"
+                                    controls
+                                    preload="metadata"
+                                />
+                                <div className="mt-2 flex justify-between items-center">
+                                    <div className="text-xs text-gray-400">{new Date(video.createdAt).toLocaleString()}</div>
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => setDefault(video.id)}
+                                            className={`text-xs px-2 py-1 rounded ${video.isDefault ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
+                                            disabled={video.isDefault}
+                                        >
+                                            {video.isDefault ? 'Default' : 'Set Default'}
+                                        </button>
+                                        <button onClick={() => deleteVideo(video.id)} className="text-red-400 hover:text-red-300 p-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {!loading && videos.length === 0 && <p className="text-gray-500 col-span-2 text-center py-4">No videos generated yet.</p>}
+                    </div>
                 </div>
             </div>
         );
@@ -777,6 +920,7 @@ export default function ChatPage() {
                         <div className="flex border-b border-gray-700 mb-4">
                             <button type="button" onClick={() => setCharEditTab('details')} className={`px-4 py-2 ${charEditTab === 'details' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Details</button>
                             <button type="button" onClick={() => setCharEditTab('memories')} className={`px-4 py-2 ${charEditTab === 'memories' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Memories</button>
+                            <button type="button" onClick={() => setCharEditTab('videos')} className={`px-4 py-2 ${charEditTab === 'videos' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Videos</button>
                         </div>
 
                         {charEditTab === 'details' ? (
@@ -825,8 +969,10 @@ export default function ChatPage() {
                                     <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Changes</button>
                                 </div>
                             </form>
-                        ) : (
+                        ) : charEditTab === 'memories' ? (
                             <MemoryEditor characterId={character.id} />
+                        ) : (
+                            <VideoManager characterId={character.id} />
                         )}
                     </div>
                 </div>

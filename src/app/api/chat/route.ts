@@ -6,6 +6,7 @@ import { llmService } from '@/services/llm-service';
 import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
+import { trimResponse } from '@/lib/text-utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -142,7 +143,8 @@ export async function POST(request: NextRequest) {
 
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
-            temperature: 1.12
+            temperature: 1.12,
+            num_predict: 200
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 
@@ -154,15 +156,17 @@ export async function POST(request: NextRequest) {
             responseContent = responseContent.trim().substring(`${character.name}: `.length).trim();
         }
 
+        // Trim response to 800 chars / complete sentence
+        responseContent = trimResponse(responseContent);
+
         // 6. Save Assistant Message with Prompt
         const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);
         console.log(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
         // 7. Generate new memory (async, don't block response)
-        // 7. Generate new memory (async, don't block response)
-        // Only generate memory every 3 turns (every 3rd user message)
+        // Only generate memory every 2 turns (every 2nd user message)
         const userMsgCount = history.filter(m => m.role === 'user').length;
-        if (userMsgCount > 0 && userMsgCount % 3 === 0) {
+        if (userMsgCount > 0 && userMsgCount % 2 === 0) {
             console.log(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
             const currentPersonaName = persona?.name || 'User';
             memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
