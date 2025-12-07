@@ -1,0 +1,15 @@
+[Unit]
+Description=ComfyUI AI Image Generation
+After=network.target
+
+[Service]
+Type=simple
+User=mellowcake
+WorkingDirectory=/home/mellowcake/Code/ComfyUI
+# Assuming standard python3 usage. If using venv, change to /home/mellowcake/Code/ComfyUI/venv/bin/python3
+ExecStart=/usr/bin/python3 main.py --listen
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

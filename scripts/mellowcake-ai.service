@@ -1,0 +1,15 @@
+[Unit]
+Description=Mellowcake AI Next.js Application
+After=network.target
+
+[Service]
+Type=simple
+User=mellowcake
+WorkingDirectory=/home/mellowcake/Code/mellowcake-ai
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
