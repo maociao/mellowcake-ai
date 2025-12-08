@@ -6,10 +6,11 @@ After=network.target
 Type=simple
 User=mellowcake
 WorkingDirectory=/home/mellowcake/Code/mellowcake-ai
-ExecStart=/usr/bin/npm start
+ExecStart=/home/mellowcake/.nvm/versions/node/v22.14.0/bin/node /home/mellowcake/.nvm/versions/node/v22.14.0/bin/npm start
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
+Environment="PATH=/home/mellowcake/.nvm/versions/node/v22.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 [Install]
 WantedBy=multi-user.target

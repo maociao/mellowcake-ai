@@ -16,6 +16,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  serverExternalPackages: ["better-sqlite3"],
 };
 
 export default withPWA(nextConfig);

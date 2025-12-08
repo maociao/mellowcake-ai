@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
+import { eq } from 'drizzle-orm';
 
 const streamPipeline = promisify(pipeline);
 
@@ -58,6 +59,15 @@ export async function GET(req: NextRequest) {
 
             if (!response.ok) throw new Error('Failed to download video');
 
+            // Check if already saved
+            const existing = await db.query.characterVideos.findFirst({
+                where: eq(characterVideos.promptId, promptId)
+            });
+
+            if (existing) {
+                return NextResponse.json({ status: 'completed', video: existing });
+            }
+
             // Save to public/videos
             const videosDir = path.join(process.cwd(), 'public', 'videos');
             if (!fs.existsSync(videosDir)) {
@@ -74,6 +84,7 @@ export async function GET(req: NextRequest) {
             const dbEntry = await db.insert(characterVideos).values({
                 characterId: parseInt(characterId),
                 filePath: `/videos/${savedFilename}`,
+                promptId: promptId,
                 isDefault: false
             }).returning();
 

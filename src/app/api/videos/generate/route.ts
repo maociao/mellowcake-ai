@@ -101,6 +101,19 @@ export async function POST(req: NextRequest) {
             workflow['7'].inputs.filename_prefix = `mellowcake-ai/char_${characterId}`;
         }
 
+        // 4b. Randomize Seeds
+        // Node 15 is KSampler (Advanced) HIGH
+        // Node 16 is KSampler (Advanced) LOW
+        const seed1 = Math.floor(Math.random() * 1000000000000000);
+        const seed2 = Math.floor(Math.random() * 1000000000000000);
+
+        if (workflow['15']) {
+            workflow['15'].inputs.noise_seed = seed1;
+        }
+        if (workflow['16']) {
+            workflow['16'].inputs.noise_seed = seed2;
+        }
+
         // 5. Queue Prompt
         const queueRes = await queuePrompt(workflow);
         const promptId = queueRes.prompt_id;
