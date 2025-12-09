@@ -80,6 +80,7 @@ export const lorebookEntries = sqliteTable('lorebook_entries', {
     keywords: text('keywords'), // JSON string array
     weight: integer('weight').default(5), // Priority 1-10
     enabled: integer('enabled', { mode: 'boolean' }).default(true),
+    isAlwaysIncluded: integer('is_always_included', { mode: 'boolean' }).default(false),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

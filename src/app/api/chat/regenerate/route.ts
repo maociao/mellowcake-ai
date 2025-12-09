@@ -93,8 +93,7 @@ export async function POST(request: NextRequest) {
         console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}`);
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
-            temperature: 1.12,
-            num_predict: 200
+            temperature: 1.12
         });
 
         // Strip character name prefix

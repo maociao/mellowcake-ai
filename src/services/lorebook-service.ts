@@ -32,7 +32,7 @@ export const lorebookService = {
     },
 
     // Entry Management
-    async addEntry(lorebookId: number, data: { label?: string; content: string; keywords?: string; enabled?: boolean }) {
+    async addEntry(lorebookId: number, data: { label?: string; content: string; keywords?: string; enabled?: boolean; isAlwaysIncluded?: boolean }) {
         return await db.insert(lorebookEntries).values({
             lorebookId,
             ...data
@@ -50,7 +50,35 @@ export const lorebookService = {
         return await db.delete(lorebookEntries).where(eq(lorebookEntries.id, id));
     },
 
-    async scan(text: string, lorebookNames: string[]) {
+    async getAlwaysIncluded(lorebookNames: string[]) {
+        if (!lorebookNames || lorebookNames.length === 0) return [];
+
+        const books = await db.query.lorebooks.findMany({
+            where: (lorebooks, { inArray }) => inArray(lorebooks.name, lorebookNames),
+            with: {
+                entries: {
+                    where: (entries, { and, eq }) => and(
+                        eq(entries.enabled, true),
+                        eq(entries.isAlwaysIncluded, true)
+                    )
+                }
+            }
+        });
+
+        const matches: { content: string; createdAt: string; weight: number }[] = [];
+        for (const book of books) {
+            for (const entry of book.entries) {
+                matches.push({
+                    content: entry.content,
+                    createdAt: entry.createdAt || new Date().toISOString(),
+                    weight: (entry as any).weight || 5
+                });
+            }
+        }
+        return matches;
+    },
+
+    async scan(text: string, lorebookNames: string[], limit: number = 5) {
         if (!lorebookNames || lorebookNames.length === 0) return [];
 
         // 1. Get IDs for names
@@ -58,7 +86,11 @@ export const lorebookService = {
             where: (lorebooks, { inArray }) => inArray(lorebooks.name, lorebookNames),
             with: {
                 entries: {
-                    where: (entries, { eq }) => eq(entries.enabled, true)
+                    where: (entries, { and, eq, ne }) => and(
+                        eq(entries.enabled, true),
+                        // Exclude always included entries from search to avoid duplicates
+                        ne(entries.isAlwaysIncluded, true)
+                    )
                 }
             }
         });
@@ -71,8 +103,14 @@ export const lorebookService = {
                 try {
                     const keywords = JSON.parse(entry.keywords || '[]');
                     if (Array.isArray(keywords)) {
-                        // Check if any keyword is in text
-                        const isMatch = keywords.some(k => lowerText.includes(k.toLowerCase()));
+                        // Check if any keyword is in text (Whole Word Match)
+                        const isMatch = keywords.some(k => {
+                            if (!k) return false;
+                            // Escape special regex characters in keyword
+                            const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+                            return regex.test(text);
+                        });
                         if (isMatch) {
                             matches.push({
                                 content: entry.content,
@@ -87,14 +125,14 @@ export const lorebookService = {
             }
         }
 
-        // Sort by Weight DESC, then CreatedAt ASC (older first)
+        // Sort by Weight DESC, then CreatedAt DESC (Newer first)
         matches.sort((a, b) => {
             if (a.weight !== b.weight) {
                 return b.weight - a.weight; // Higher weight first
             }
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); // Older first
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // Newer first
         });
 
-        return matches;
+        return matches.slice(0, limit);
     }
 };

@@ -20,7 +20,7 @@ export const memoryService = {
             .orderBy(desc(memories.createdAt));
     },
 
-    async searchMemories(characterId: number, query: string, limit: number = 5) {
+    async searchMemories(characterId: number, query: string, limit: number = 10) {
         // Simple keyword search for now
         // In a real app, we'd use vector search or FTS
         // We'll split query into words and look for matches in content or keywords
@@ -55,7 +55,10 @@ export const memoryService = {
 
         return scored
             .filter(m => m.score > 0)
-            .sort((a, b) => b.score - a.score)
+            .sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score; // Higher score first
+                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); // Newer first
+            })
             .slice(0, limit);
     },
 

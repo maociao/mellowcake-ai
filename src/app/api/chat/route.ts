@@ -41,20 +41,33 @@ export async function POST(request: NextRequest) {
         console.log(`[Chat API] Retrieved ${history.length} messages from history`);
 
         // 4. Build Context (Raw Llama 3 Prompt)
-        console.log(`[Chat API] Searching memories for character ${character.id} with query: "${content}"`);
-        const memories = await memoryService.searchMemories(character.id, content);
+        // 4. Build Context (Raw Llama 3 Prompt)
+        // Expand memory search to include recent context (last 3 messages + current)
+        const memoryContext = [
+            ...history.slice(-3).map(m => m.content),
+            content
+        ].join(' ');
+        console.log(`[Chat API] Searching memories for character ${character.id} with context length: ${memoryContext.length}`);
+        const memories = await memoryService.searchMemories(character.id, memoryContext);
         console.log(`[Chat API] Found ${memories.length} relevant memories`);
 
         // Scan Lorebooks
         let lorebookContent: { content: string; createdAt: string }[] = [];
         if (lorebooks && lorebooks.length > 0) {
-            // Scan last 5 messages + current message
-            const recentHistory = history.slice(-5).map(m => m.content).join('\n');
+            // 1. Get Always Included Entries
+            const alwaysIncluded = await lorebookService.getAlwaysIncluded(lorebooks);
+            console.log(`[Chat API] Found ${alwaysIncluded.length} always-included lorebook entries`);
+
+            // 2. Scan for Dynamic Entries (last 3 messages + current message)
+            const recentHistory = history.slice(-3).map(m => m.content).join('\n');
             const scanText = `${recentHistory}\n${content}`;
 
-            console.log(`[Chat API] Scanning lorebooks: ${lorebooks.join(', ')} (History depth: 5)`);
-            lorebookContent = await lorebookService.scan(scanText, lorebooks);
-            console.log(`[Chat API] Found ${lorebookContent.length} lorebook matches`);
+            console.log(`[Chat API] Scanning lorebooks: ${lorebooks.join(', ')} (History depth: 3)`);
+            const scannedEntries = await lorebookService.scan(scanText, lorebooks);
+            console.log(`[Chat API] Found ${scannedEntries.length} dynamic lorebook matches`);
+
+            // Merge: Always Included first, then Scanned
+            lorebookContent = [...alwaysIncluded, ...scannedEntries];
         }
 
         // Use the new Llama 3 prompt builder
@@ -143,8 +156,7 @@ export async function POST(request: NextRequest) {
 
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
-            temperature: 1.12,
-            num_predict: 200
+            temperature: 1.12
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 

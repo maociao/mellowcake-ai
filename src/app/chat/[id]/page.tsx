@@ -49,6 +49,7 @@ interface LorebookEntry {
     keywords: string; // JSON string
     weight: number;
     enabled: boolean;
+    isAlwaysIncluded?: boolean;
 }
 
 interface Lorebook {
@@ -628,7 +629,8 @@ export default function ChatPage() {
             content: formData.get('content') as string,
             keywords: JSON.stringify((formData.get('keywords') as string).split(',').map(k => k.trim()).filter(k => k)),
             weight: parseInt(formData.get('weight') as string) || 5,
-            enabled: formData.get('enabled') === 'on'
+            enabled: formData.get('enabled') === 'on',
+            isAlwaysIncluded: formData.get('isAlwaysIncluded') === 'on'
         };
 
         try {
@@ -1145,6 +1147,7 @@ export default function ChatPage() {
                                                                 <div className="flex items-center gap-2 mb-1">
                                                                     <span className={`w-2 h-2 rounded-full ${entry.enabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                                                     <span className="font-bold text-sm">{entry.label || 'No Label'}</span>
+                                                                    {entry.isAlwaysIncluded && <span className="text-xs bg-purple-900 text-purple-200 px-1 rounded border border-purple-700">Lore</span>}
                                                                     <span className="text-xs bg-gray-600 px-1 rounded text-gray-300" title="Weight">W: {entry.weight || 5}</span>
                                                                 </div>
                                                                 <div className="text-xs text-gray-300 line-clamp-2 mb-1">{entry.content}</div>
@@ -1210,6 +1213,15 @@ export default function ChatPage() {
                                                                 className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 mr-2"
                                                             />
                                                             <label className="text-sm text-gray-400">Enabled</label>
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                name="isAlwaysIncluded"
+                                                                defaultChecked={typeof editingEntry !== 'string' ? editingEntry.isAlwaysIncluded : false}
+                                                                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 mr-2"
+                                                            />
+                                                            <label className="text-sm text-gray-400">Always Included (Lore)</label>
                                                         </div>
                                                         <div className="flex justify-end space-x-2">
                                                             <button type="button" onClick={() => setEditingEntry(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>

@@ -91,8 +91,7 @@ export async function POST(request: NextRequest) {
 
         const responseContent = await llmService.generate(model, prompt, {
             stop: ['<|eot_id|>', `${character.name}:`], // Stop if it tries to generate character response
-            temperature: 1.12,
-            num_predict: 200
+            temperature: 1.12
         });
 
         // Clean up response

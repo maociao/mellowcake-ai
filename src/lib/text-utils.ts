@@ -6,7 +6,7 @@
  * @param maxLength The maximum length in characters (default 800)
  * @returns The trimmed text
  */
-export function trimResponse(text: string, maxLength: number = 800): string {
+export function trimResponse(text: string, maxLength: number = 900): string {
     if (!text || text.length <= maxLength) {
         return text;
     }
