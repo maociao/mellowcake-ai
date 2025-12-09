@@ -41,6 +41,20 @@ for asset in "${ASSETS[@]}"; do
     fi
 done
 
+# Backup Voices (Project Root)
+if [ -d "$SOURCE_DIR/voices" ]; then
+    # Helper to prevent 'cp' error if directory is empty but exists
+    if [ -n "$(ls -A "$SOURCE_DIR/voices")" ]; then
+        cp -r "$SOURCE_DIR/voices" "$TEMP_DIR/"
+        log "Backed up voices directory."
+    else
+        mkdir -p "$TEMP_DIR/voices"
+        log "Backed up empty voices directory."
+    fi
+else
+    log "WARNING: voices directory not found."
+fi
+
 # Compress the backup
 ARCHIVE_NAME="mellowcake_backup_$DATE.tar.gz"
 tar -czf "$BACKUP_DIR/$ARCHIVE_NAME" -C "$TEMP_DIR" .
