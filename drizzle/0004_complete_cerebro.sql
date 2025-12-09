@@ -1,0 +1,1 @@
+ALTER TABLE `voices` ADD `transcript` text;

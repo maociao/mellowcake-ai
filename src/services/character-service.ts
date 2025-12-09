@@ -68,8 +68,14 @@ export const characterService = {
     },
 
     async getById(id: number) {
-        const result = await db.select().from(characters).where(eq(characters.id, id));
-        const char = result[0] || null;
+        const char = await db.query.characters.findFirst({
+            where: eq(characters.id, id),
+            with: {
+                // @ts-ignore
+                voice: true
+            }
+        });
+
         if (char) {
             const defaultVideo = await db.query.characterVideos.findFirst({
                 where: (videos, { eq, and }) => and(eq(videos.characterId, id), eq(videos.isDefault, true)),

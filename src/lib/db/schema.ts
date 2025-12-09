@@ -1,6 +1,16 @@
 import { sql, relations } from 'drizzle-orm';
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 
+export const voices = sqliteTable('voices', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    filePath: text('file_path').notNull(),
+    transcript: text('transcript'),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+
+
 export const characters = sqliteTable('characters', {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
@@ -11,12 +21,20 @@ export const characters = sqliteTable('characters', {
     scenario: text('scenario'),
     systemPrompt: text('system_prompt'),
     lorebooks: text('lorebooks'), // JSON string array of names
-    voiceSample: text('voice_sample'), // Path to reference audio file
-    voiceSampleText: text('voice_sample_text'), // Transcript of the reference audio
+    voiceId: integer('voice_id').references(() => voices.id),
+    voiceSample: text('voice_sample'), // Deprecated: Path to reference audio file
+    voiceSampleText: text('voice_sample_text'), // Deprecated: Transcript of the reference audio
     voiceSpeed: real('voice_speed').default(1.0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const charactersRelations = relations(characters, ({ one }) => ({
+    voice: one(voices, {
+        fields: [characters.voiceId],
+        references: [voices.id],
+    }),
+}));
 
 export const personas = sqliteTable('personas', {
     id: integer('id').primaryKey({ autoIncrement: true }),

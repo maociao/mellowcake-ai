@@ -15,51 +15,57 @@ export async function POST(request: NextRequest) {
 
         const character = await db.query.characters.findFirst({
             where: eq(characters.id, characterId),
+            with: {
+                // @ts-ignore - Relation is defined in schema but types might need regeneration or restart
+                voice: true
+            }
         });
 
-        if (!character || !character.voiceSample) {
-            return new NextResponse('Character or voice sample not found', { status: 404 });
+        if (!character) {
+            return new NextResponse('Character not found', { status: 404 });
         }
 
-        // Prepare FormData for Python service
+        // Determine voice path: Priority to Voice Bank, fallback to legacy
+        let voicePath: string | null = null;
+        let voiceReferenceText: string = character.voiceSampleText || ''; // Fallback legacy text
+
+        // Check Voice Bank
+        if ((character as any).voice) {
+            const v = (character as any).voice;
+            voicePath = path.join(process.cwd(), 'voices', v.filePath);
+        }
+        // Fallback to legacy column
+        else if (character.voiceSample) {
+            let filename = path.basename(character.voiceSample);
+            voicePath = path.join(process.cwd(), 'voices', filename);
+
+            // Fallback for old public/voices files
+            if (!fs.existsSync(voicePath)) {
+                const publicVoicePath = path.join(process.cwd(), 'public', 'voices', filename);
+                if (fs.existsSync(publicVoicePath)) {
+                    voicePath = publicVoicePath;
+                }
+            }
+        }
+
+        if (!voicePath || !fs.existsSync(voicePath)) {
+            return new NextResponse('Voice sample file missing or not assigned', { status: 404 });
+        }
+
         // Prepare FormData for Python service
         const formData = new FormData();
         // Strip text between asterisks (narration)
         const cleanText = text.replace(/\*[^*]*\*/g, '').trim();
 
-        if (!cleanText) {
-            // If only narration, maybe fallback to original or just silence? 
-            // Let's fallback to original to avoid errors, or maybe just return empty audio?
-            // For now, let's send original if clean is empty, or maybe just a space.
-            // Actually, if it's all narration, we probably don't want to say anything.
-            // But the user might want to hear *something*.
-            // Let's assume if cleanText is empty, we skip TTS or send a silence.
-            // But the Python service might error on empty text.
-            // Let's send a space if empty.
+        // Determine effective reference text
+        let effectiveReferenceText = voiceReferenceText;
+        if ((character as any).voice && (character as any).voice.transcript) {
+            effectiveReferenceText = (character as any).voice.transcript;
         }
 
         formData.append('text', cleanText || '...');
-        formData.append('reference_text', character.voiceSampleText || '');
+        formData.append('reference_text', effectiveReferenceText);
         formData.append('speed', (character.voiceSpeed || 1.0).toString());
-
-        // Read the voice sample file
-        // Handle both old (/voices/...) and new (/api/voices/...) paths
-        let filename = path.basename(character.voiceSample);
-        let voicePath = path.join(process.cwd(), 'voices', filename);
-
-        // Fallback for old public/voices files if not found in voices dir
-        if (!fs.existsSync(voicePath)) {
-            const publicVoicePath = path.join(process.cwd(), 'public', 'voices', filename);
-            if (fs.existsSync(publicVoicePath)) {
-                // It's an old file, use it
-                // But we moved them, so this shouldn't happen unless user didn't run the move command
-                voicePath = publicVoicePath; // Update voicePath to use the public path
-            }
-        }
-
-        if (!fs.existsSync(voicePath)) {
-            return new NextResponse('Voice sample file missing on server', { status: 500 });
-        }
 
         const fileBuffer = fs.readFileSync(voicePath);
         const fileBlob = new Blob([fileBuffer]);

@@ -63,4 +63,4 @@ tts_service/uploads
 tts_service/outputs
 
 # media
-voices
+/voices

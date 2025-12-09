@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { VoiceBankModal } from '@/components/VoiceBankModal';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -28,6 +29,8 @@ interface CharacterDetails {
     voiceSample?: string;
     voiceSampleText?: string;
     voiceSpeed?: number;
+    voiceId?: number;
+    voice?: { id: number, name: string, filePath: string }; // If joined
 }
 
 interface ChatSession {
@@ -354,15 +357,15 @@ export default function ChatPage() {
     }
 
     // --- Voice Manager Component ---
-    function VoiceManager({ characterId, currentVoice, currentText, currentSpeed }: { characterId: number, currentVoice?: string, currentText?: string, currentSpeed?: number }) {
+    function VoiceManager({ characterId, currentVoice, currentText, currentSpeed, currentVoiceName }: { characterId: number, currentVoice?: string, currentText?: string, currentSpeed?: number, currentVoiceName?: string }) {
         const [uploading, setUploading] = useState(false);
-        const [transcript, setTranscript] = useState(currentText || '');
+        const [showVoiceBank, setShowVoiceBank] = useState(false);
         const [speed, setSpeed] = useState(currentSpeed || 1.0);
 
         const handleSaveSpeed = async () => {
             try {
                 await fetch(`/api/characters/${characterId}`, {
-                    method: 'PUT',
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ voiceSpeed: speed })
                 });
@@ -374,29 +377,32 @@ export default function ChatPage() {
             }
         };
 
-        const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const file = formData.get('file') as File;
-            if (!file) return;
-
-            setUploading(true);
+        const handleSelectVoice = async (voiceId: number) => {
             try {
-                const res = await fetch(`/api/characters/${characterId}/voice`, {
-                    method: 'POST',
-                    body: formData
+                await fetch(`/api/characters/${characterId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voiceId })
                 });
-
-                if (res.ok) {
-                    loadData(); // Reload character data
-                    alert('Voice sample uploaded!');
-                } else {
-                    alert('Upload failed');
-                }
+                loadData();
             } catch (e) {
                 console.error(e);
-            } finally {
-                setUploading(false);
+                alert('Failed to assign voice');
+            }
+        };
+
+        const handleUnassign = async () => {
+            if (!confirm('Unassign voice?')) return;
+            try {
+                await fetch(`/api/characters/${characterId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voiceId: null })
+                });
+                loadData();
+            } catch (e) {
+                console.error(e);
+                alert('Failed to unassign voice');
             }
         };
 
@@ -405,11 +411,24 @@ export default function ChatPage() {
                 <div className="bg-gray-700 p-4 rounded">
                     <h4 className="font-bold mb-4">Voice Settings</h4>
 
-                    {currentVoice && (
+                    {currentVoice ? (
                         <div className="mb-6 p-4 bg-gray-800 rounded">
-                            <h5 className="text-sm text-gray-400 mb-2">Current Voice Sample</h5>
-                            <audio controls src={currentVoice} className="w-full mb-2" />
-                            <p className="text-xs text-gray-500 italic">"{currentText}"</p>
+                            <h5 className="text-sm text-gray-400 mb-2">Assigned Voice</h5>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-white font-medium">{currentVoiceName || 'Unknown Voice'}</span>
+                                <button onClick={handleUnassign} className="text-xs text-red-400 hover:text-red-300">Unassign</button>
+                            </div>
+                            <audio controls src={`/voices/${currentVoice.split('/').pop()}`} className="w-full mb-2" />
+                            {/* We detect path logic here: if it's full path or relative. 
+                                The API returns logic already does fallback, but for audio src here we derived.
+                                Ideally API should return a web-accessible URL.
+                                Let's assume currentVoice is the API-derived path or we construct: 
+                                If it's linked voice, it's just filename.
+                            */}
+                        </div>
+                    ) : (
+                        <div className="mb-6 p-4 bg-gray-800 rounded text-center text-gray-500 text-sm">
+                            No voice assigned. Use the Voice Bank to select one.
                         </div>
                     )}
 
@@ -434,29 +453,19 @@ export default function ChatPage() {
                         </button>
                     </div>
 
-                    <form onSubmit={handleUpload} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Upload New Reference Audio (WAV/MP3)</label>
-                            <input type="file" name="file" accept="audio/*" className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Reference Text (Transcript)</label>
-                            <textarea
-                                name="transcript"
-                                value={transcript}
-                                onChange={e => setTranscript(e.target.value)}
-                                className="w-full bg-gray-800 rounded p-2 text-white text-sm"
-                                rows={2}
-                                placeholder="Type exactly what is said in the audio..."
-                                required
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Accurate transcript improves voice cloning quality.</p>
-                        </div>
-                        <button type="submit" disabled={uploading} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded w-full">
-                            {uploading ? 'Uploading...' : 'Save Voice Sample'}
-                        </button>
-                    </form>
+                    <button
+                        onClick={() => setShowVoiceBank(true)}
+                        className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded w-full"
+                    >
+                        Open Voice Bank
+                    </button>
                 </div>
+
+                <VoiceBankModal
+                    isOpen={showVoiceBank}
+                    onClose={() => setShowVoiceBank(false)}
+                    onSelect={handleSelectVoice}
+                />
 
                 {currentVoice && (
                     <div className="bg-gray-700 p-4 rounded">
@@ -1169,7 +1178,13 @@ export default function ChatPage() {
                         ) : charEditTab === 'videos' ? (
                             <VideoManager characterId={character.id} />
                         ) : (
-                            <VoiceManager characterId={character.id} currentVoice={character.voiceSample} currentText={character.voiceSampleText} currentSpeed={character.voiceSpeed} />
+                            <VoiceManager
+                                characterId={character.id}
+                                currentVoice={character.voice?.filePath || character.voiceSample}
+                                currentText={character.voiceSampleText}
+                                currentSpeed={character.voiceSpeed}
+                                currentVoiceName={character.voice?.name || (character.voiceSample ? 'Legacy Voice' : undefined)}
+                            />
                         )}
                     </div>
                 </div>
