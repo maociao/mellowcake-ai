@@ -24,7 +24,11 @@ The following modifications have been applied to `src/f5_tts/infer/utils_infer.p
     -   In `process_batch` within `utils_infer.py`, the audio tensor is explicitly cloned before inference (`audio_clone = audio.clone()`).
     -   This prevents potential in-place modifications by the model from corrupting the reference audio for subsequent batches during batched generation.
 
-4.  **Threaded Processing Disabled**:
+4.  **Adaptive Shape Handling**:
+    -   Added a runtime check in `process_batch` to handle variations in tensor output shape (Time-first vs Channels-first).
+    -   This prevents dimension mismatches in the vocoder `Conv1d` input.
+
+5.  **Threaded Processing Disabled**:
     -   Original threaded batch processing was replaced with a sequential loop in `utils_infer.py` to prevent race conditions and simplify debugging.
 
 ## Maintenance

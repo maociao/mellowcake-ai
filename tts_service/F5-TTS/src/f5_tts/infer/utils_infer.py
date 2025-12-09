@@ -504,8 +504,14 @@ def infer_batch_process(
             del _
 
             generated = generated.to(torch.float32)  # generated mel spectrogram
-            generated = generated[:, ref_audio_len:, :]
-            generated = generated.permute(0, 2, 1)
+            # Adaptive shape handling to prevent dimension mismatches
+            if generated.shape[-1] == n_mel_channels:
+                # (Batch, Time, Channels) -> Slice Time -> Permute to (Batch, Channels, Time)
+                generated = generated[:, ref_audio_len:, :]
+                generated = generated.permute(0, 2, 1)
+            elif generated.shape[1] == n_mel_channels:
+                # (Batch, Channels, Time) -> Slice Time (Dim 2)
+                generated = generated[:, :, ref_audio_len:]
 
             if mel_spec_type == "vocos":
                 generated_wave = vocoder.decode(generated)
