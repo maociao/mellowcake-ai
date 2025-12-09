@@ -42,34 +42,46 @@ export async function POST(request: NextRequest) {
 
         const memories = await memoryService.searchMemories(character.id, query);
 
-        // If persona is linked to a character, fetch their memories too
-        if (persona && (persona as any).characterId) {
+        // If persona is linked to a DIFFERENT character, fetch their memories too
+        if (persona && (persona as any).characterId && (persona as any).characterId !== character.id) {
             console.log(`[Impersonate API] Fetching linked memories for character ${(persona as any).characterId}`);
             const linkedMemories = await memoryService.searchMemories((persona as any).characterId, query);
             if (linkedMemories.length > 0) {
                 console.log(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
                 // Add them to the list
                 memories.push(...linkedMemories);
+
+                // Re-sort and limit to 10 to respect the global limit
+                // We assume searchMemories returns objects with a 'score' property
+                memories.sort((a: any, b: any) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                });
+
+                // Keep only top 10
+                if (memories.length > 10) {
+                    memories.length = 10;
+                }
             }
         }
 
         // Scan Lorebooks (using last 3 messages)
+        // Scan Lorebooks (using last 3 messages)
         let lorebookContent: { content: string; createdAt: string }[] = [];
-        if (session.lorebooks) {
-            const lorebookNames = JSON.parse(session.lorebooks) as string[];
-            if (lorebookNames.length > 0) {
-                const recentHistory = history.slice(-3).map(m => m.content).join('\n');
-                const scanText = `${recentHistory}\n${query}`; // Include query/last message
-                lorebookContent = await lorebookService.scan(scanText, lorebookNames);
-            }
-        } else if (character.lorebooks) {
-            // Fallback to character default lorebooks if session ones aren't set (though UI usually sets them)
-            const lorebookNames = JSON.parse(character.lorebooks) as string[];
-            if (lorebookNames.length > 0) {
-                const recentHistory = history.slice(-3).map(m => m.content).join('\n');
-                const scanText = `${recentHistory}\n${query}`;
-                lorebookContent = await lorebookService.scan(scanText, lorebookNames);
-            }
+        const lorebookNames = session.lorebooks
+            ? JSON.parse(session.lorebooks) as string[]
+            : (character.lorebooks ? JSON.parse(character.lorebooks) as string[] : []);
+
+        if (lorebookNames.length > 0) {
+            // 1. Get Always Included Entries
+            const alwaysIncluded = await lorebookService.getAlwaysIncluded(lorebookNames);
+
+            // 2. Scan for Dynamic Entries
+            const recentHistory = history.slice(-3).map(m => m.content).join('\n');
+            const scanText = `${recentHistory}\n${query}`;
+            const scannedEntries = await lorebookService.scan(scanText, lorebookNames);
+
+            lorebookContent = [...alwaysIncluded, ...scannedEntries];
         }
 
         // Build Prompt

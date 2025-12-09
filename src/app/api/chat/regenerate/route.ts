@@ -65,9 +65,15 @@ export async function POST(request: NextRequest) {
         const lorebooks = session.lorebooks ? JSON.parse(session.lorebooks) : (character.lorebooks ? JSON.parse(character.lorebooks) : []);
 
         if (lorebooks && lorebooks.length > 0) {
-            const recentHistory = history.slice(-5).map(m => m.content).join('\n');
+            // 1. Get Always Included Entries
+            const alwaysIncluded = await lorebookService.getAlwaysIncluded(lorebooks);
+
+            // 2. Scan for Dynamic Entries
+            const recentHistory = history.slice(-3).map(m => m.content).join('\n');
             const scanText = `${recentHistory}\n${content}`;
-            lorebookContent = await lorebookService.scan(scanText, lorebooks);
+            const scannedEntries = await lorebookService.scan(scanText, lorebooks);
+
+            lorebookContent = [...alwaysIncluded, ...scannedEntries];
         }
 
         // Build Prompt
