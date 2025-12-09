@@ -1,5 +1,5 @@
 import { sql, relations } from 'drizzle-orm';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 
 export const characters = sqliteTable('characters', {
     id: integer('id').primaryKey({ autoIncrement: true }),
@@ -11,6 +11,9 @@ export const characters = sqliteTable('characters', {
     scenario: text('scenario'),
     systemPrompt: text('system_prompt'),
     lorebooks: text('lorebooks'), // JSON string array of names
+    voiceSample: text('voice_sample'), // Path to reference audio file
+    voiceSampleText: text('voice_sample_text'), // Transcript of the reference audio
+    voiceSpeed: real('voice_speed').default(1.0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

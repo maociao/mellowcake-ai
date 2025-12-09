@@ -25,6 +25,9 @@ interface CharacterDetails {
     systemPrompt?: string;
     personality?: string;
     lorebooks?: string; // JSON string
+    voiceSample?: string;
+    voiceSampleText?: string;
+    voiceSpeed?: number;
 }
 
 interface ChatSession {
@@ -93,7 +96,7 @@ export default function ChatPage() {
 
     // Prompt Inspection State
     const [viewingPrompt, setViewingPrompt] = useState<string | null>(null);
-    const [charEditTab, setCharEditTab] = useState<'details' | 'memories' | 'videos'>('details');
+    const [charEditTab, setCharEditTab] = useState<'details' | 'memories' | 'videos' | 'voice'>('details');
 
     // Copy State
     const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -345,6 +348,165 @@ export default function ChatPage() {
                         {!loading && videos.length === 0 && <p className="text-gray-500 col-span-2 text-center py-4">No videos generated yet.</p>}
                     </div>
                 </div>
+            </div>
+        );
+
+    }
+
+    // --- Voice Manager Component ---
+    function VoiceManager({ characterId, currentVoice, currentText, currentSpeed }: { characterId: number, currentVoice?: string, currentText?: string, currentSpeed?: number }) {
+        const [uploading, setUploading] = useState(false);
+        const [transcript, setTranscript] = useState(currentText || '');
+        const [speed, setSpeed] = useState(currentSpeed || 1.0);
+
+        const handleSaveSpeed = async () => {
+            try {
+                await fetch(`/api/characters/${characterId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voiceSpeed: speed })
+                });
+                loadData();
+                alert('Voice speed saved!');
+            } catch (e) {
+                console.error(e);
+                alert('Failed to save speed');
+            }
+        };
+
+        const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const file = formData.get('file') as File;
+            if (!file) return;
+
+            setUploading(true);
+            try {
+                const res = await fetch(`/api/characters/${characterId}/voice`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    loadData(); // Reload character data
+                    alert('Voice sample uploaded!');
+                } else {
+                    alert('Upload failed');
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setUploading(false);
+            }
+        };
+
+        return (
+            <div className="space-y-4">
+                <div className="bg-gray-700 p-4 rounded">
+                    <h4 className="font-bold mb-4">Voice Settings</h4>
+
+                    {currentVoice && (
+                        <div className="mb-6 p-4 bg-gray-800 rounded">
+                            <h5 className="text-sm text-gray-400 mb-2">Current Voice Sample</h5>
+                            <audio controls src={currentVoice} className="w-full mb-2" />
+                            <p className="text-xs text-gray-500 italic">"{currentText}"</p>
+                        </div>
+                    )}
+
+                    <div className="mb-6 p-4 bg-gray-800 rounded">
+                        <label className="block text-sm font-medium text-gray-400 mb-2">Voice Speed: {speed.toFixed(1)}x</label>
+                        <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.1"
+                            value={speed}
+                            onChange={e => setSpeed(parseFloat(e.target.value))}
+                            className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0.5x (Slower)</span>
+                            <span>1.0x (Normal)</span>
+                            <span>2.0x (Faster)</span>
+                        </div>
+                        <button onClick={handleSaveSpeed} className="mt-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">
+                            Save Speed
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleUpload} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Upload New Reference Audio (WAV/MP3)</label>
+                            <input type="file" name="file" accept="audio/*" className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Reference Text (Transcript)</label>
+                            <textarea
+                                name="transcript"
+                                value={transcript}
+                                onChange={e => setTranscript(e.target.value)}
+                                className="w-full bg-gray-800 rounded p-2 text-white text-sm"
+                                rows={2}
+                                placeholder="Type exactly what is said in the audio..."
+                                required
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Accurate transcript improves voice cloning quality.</p>
+                        </div>
+                        <button type="submit" disabled={uploading} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded w-full">
+                            {uploading ? 'Uploading...' : 'Save Voice Sample'}
+                        </button>
+                    </form>
+                </div>
+
+                {currentVoice && (
+                    <div className="bg-gray-700 p-4 rounded">
+                        <h4 className="font-bold mb-4">Test Voice</h4>
+                        <div className="space-y-4">
+                            <input
+                                id="test-voice-input"
+                                className="w-full bg-gray-800 rounded p-2 text-white text-sm"
+                                placeholder="Type something to speak..."
+                                defaultValue="Hello, I am ready to chat."
+                            />
+                            <button
+                                onClick={async (e) => {
+                                    const btn = e.currentTarget;
+                                    const input = document.getElementById('test-voice-input') as HTMLInputElement;
+                                    const text = input.value;
+                                    if (!text) return;
+
+                                    btn.disabled = true;
+                                    btn.textContent = 'Generating...';
+
+                                    try {
+                                        const res = await fetch('/api/tts', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ text, characterId })
+                                        });
+                                        if (res.ok) {
+                                            const blob = await res.blob();
+                                            const url = URL.createObjectURL(blob);
+                                            const audio = new Audio(url);
+                                            audio.play();
+                                        } else {
+                                            alert('TTS Generation failed');
+                                        }
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Error generating TTS');
+                                    } finally {
+                                        btn.disabled = false;
+                                        btn.textContent = 'Test Voice';
+                                    }
+                                }}
+                                className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded w-full"
+                            >
+                                Test Voice
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -809,6 +971,27 @@ export default function ChatPage() {
         }
     };
 
+    const playTTS = async (text: string) => {
+        if (!character) return;
+        try {
+            const res = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, characterId: character.id })
+            });
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audio.play();
+            } else {
+                console.error('TTS failed');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
 
 
     const handleImpersonate = async () => {
@@ -932,6 +1115,7 @@ export default function ChatPage() {
                             <button type="button" onClick={() => setCharEditTab('details')} className={`px-4 py-2 ${charEditTab === 'details' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Details</button>
                             <button type="button" onClick={() => setCharEditTab('memories')} className={`px-4 py-2 ${charEditTab === 'memories' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Memories</button>
                             <button type="button" onClick={() => setCharEditTab('videos')} className={`px-4 py-2 ${charEditTab === 'videos' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Videos</button>
+                            <button type="button" onClick={() => setCharEditTab('voice')} className={`px-4 py-2 ${charEditTab === 'voice' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Voice</button>
                         </div>
 
                         {charEditTab === 'details' ? (
@@ -982,8 +1166,10 @@ export default function ChatPage() {
                             </form>
                         ) : charEditTab === 'memories' ? (
                             <MemoryEditor characterId={character.id} />
-                        ) : (
+                        ) : charEditTab === 'videos' ? (
                             <VideoManager characterId={character.id} />
+                        ) : (
+                            <VoiceManager characterId={character.id} currentVoice={character.voiceSample} currentText={character.voiceSampleText} currentSpeed={character.voiceSpeed} />
                         )}
                     </div>
                 </div>
@@ -1400,6 +1586,17 @@ export default function ChatPage() {
                                     </div>
                                 )}
                                 <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    {msg.role === 'assistant' && (
+                                        <button
+                                            onClick={() => playTTS(msg.content)}
+                                            className="text-gray-400 hover:text-blue-400 p-1"
+                                            title="Play Voice"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                                            </svg>
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleCopy(msg.content, (msg as any).id || idx)}
                                         className="text-gray-400 hover:text-white p-1"

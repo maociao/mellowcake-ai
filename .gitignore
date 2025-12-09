@@ -56,3 +56,11 @@ mellowcake.db
 public/sw.js
 public/workbox-*.js
 public/worker-*.js
+
+# python tts service
+tts_service/venv
+tts_service/uploads
+tts_service/outputs
+
+# media
+voices
