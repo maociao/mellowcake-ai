@@ -100,7 +100,7 @@ export const contextManager = {
         systemPromptParts.push(`[Main]`);
         systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
         systemPromptParts.push(`Past events and memories of the ${charName} are provided below. Use them to inform your responses.`);
-        systemPromptParts.push(`Responses should be short and conversational.`);
+        systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
         // Persona Description (This is now the "Self" description)
@@ -202,7 +202,7 @@ export const contextManager = {
         systemPromptParts.push(`[Main]`);
         systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
         systemPromptParts.push(`Memories of past events and interactions are provided below. Use them to inform your responses.`);
-        systemPromptParts.push(`Responses should be short and conversational.`);
+        systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
         if (character.description) systemPromptParts.push(replaceVariables(character.description));

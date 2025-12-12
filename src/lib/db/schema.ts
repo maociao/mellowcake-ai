@@ -67,6 +67,7 @@ export const chatMessages = sqliteTable('chat_messages', {
     name: text('name'), // Name of the sender at the time of the message (for multi-persona history)
     swipes: text('swipes'), // JSON string array of alternative contents
     currentIndex: integer('current_index').default(0),
+    audioPaths: text('audio_paths'), // JSON string array of cached audio paths corresponding to swipes
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 

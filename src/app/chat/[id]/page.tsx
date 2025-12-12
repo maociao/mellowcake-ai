@@ -980,13 +980,13 @@ export default function ChatPage() {
         }
     };
 
-    const playTTS = async (text: string) => {
+    const playTTS = async (text: string, messageId?: number, swipeIndex: number = 0) => {
         if (!character) return;
         try {
             const res = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, characterId: character.id })
+                body: JSON.stringify({ text, characterId: character.id, messageId, swipeIndex })
             });
             if (res.ok) {
                 const blob = await res.blob();
@@ -1603,7 +1603,7 @@ export default function ChatPage() {
                                 <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     {msg.role === 'assistant' && (
                                         <button
-                                            onClick={() => playTTS(msg.content)}
+                                            onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0)}
                                             className="text-gray-400 hover:text-blue-400 p-1"
                                             title="Play Voice"
                                         >

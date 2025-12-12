@@ -30,7 +30,7 @@ else
 fi
 
 # Backup Public Assets
-ASSETS=("uploads" "characters" "personas" "videos")
+ASSETS=("uploads" "characters" "personas" "videos" "audio-cache")
 for asset in "${ASSETS[@]}"; do
     if [ -d "$SOURCE_DIR/public/$asset" ]; then
         mkdir -p "$TEMP_DIR/public/$asset"
@@ -70,5 +70,15 @@ rm -rf "$TEMP_DIR"
 # Delete old backups
 find "$BACKUP_DIR" -name "mellowcake_backup_*.tar.gz" -type f -mtime +$RETENTION_DAYS -delete
 log "Old backups cleaned up (retention: $RETENTION_DAYS days)."
+
+# Cleanup temporary TTS files
+if [ -d "$SOURCE_DIR/tts_service/uploads" ]; then
+    rm -rf "$SOURCE_DIR/tts_service/uploads/"*
+    log "Cleaned tts_service/uploads"
+fi
+if [ -d "$SOURCE_DIR/tts_service/outputs" ]; then
+    rm -rf "$SOURCE_DIR/tts_service/outputs/"*
+    log "Cleaned tts_service/outputs"
+fi
 
 log "Backup completed."
