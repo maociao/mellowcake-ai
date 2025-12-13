@@ -1257,7 +1257,7 @@ export default function ChatPage() {
                                 <AvatarPicker
                                     currentAvatar={editAvatarPath}
                                     onAvatarChange={setEditAvatarPath}
-                                    generateContext={character.appearance || ''}
+                                    generateContext={character.appearance + ' ' + character.personality || ''}
                                 />
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Name <span className="text-red-500">*</span></label>

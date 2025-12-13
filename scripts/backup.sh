@@ -30,7 +30,7 @@ else
 fi
 
 # Backup Public Assets
-ASSETS=("uploads" "characters" "personas" "videos" "audio-cache")
+ASSETS=("uploads" "characters" "personas" "videos" "audio-cache" "temp")
 for asset in "${ASSETS[@]}"; do
     if [ -d "$SOURCE_DIR/public/$asset" ]; then
         mkdir -p "$TEMP_DIR/public/$asset"

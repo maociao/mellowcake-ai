@@ -48,6 +48,35 @@ export async function POST(request: NextRequest) {
         ].join(' ');
         console.log(`[Chat API] Searching memories for character ${character.id} with context length: ${memoryContext.length}`);
         const memories = await memoryService.searchMemories(character.id, memoryContext);
+
+        // Linked Character Logic
+        let linkedCharacter = null;
+        if (persona && (persona as any).characterId) {
+            if ((persona as any).characterId !== character.id) {
+                console.log(`[Chat API] Fetching linked character ${(persona as any).characterId}`);
+                linkedCharacter = await characterService.getById((persona as any).characterId);
+
+                if (linkedCharacter) {
+                    const linkedMemories = await memoryService.searchMemories(linkedCharacter.id, memoryContext);
+                    if (linkedMemories.length > 0) {
+                        console.log(`[Chat API] Found ${linkedMemories.length} linked memories`);
+                        memories.push(...linkedMemories);
+                    }
+                }
+            } else {
+                linkedCharacter = character;
+            }
+
+            // Re-sort memories
+            if (memories.length > 0) {
+                memories.sort((a: any, b: any) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                });
+                if (memories.length > 10) memories.length = 10;
+            }
+        }
+
         console.log(`[Chat API] Found ${memories.length} relevant memories`);
 
         // Scan Lorebooks
@@ -70,7 +99,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Use the new Llama 3 prompt builder
-        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary);
+        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter);
         console.log(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
 
         // 5. Call LLM (Generate)

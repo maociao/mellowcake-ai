@@ -82,7 +82,8 @@ export const contextManager = {
         history: DBMessage[],
         relevantMemories: DBMemory[] = [],
         lorebookContent: { content: string; createdAt: string }[] = [],
-        summary: string | null = null
+        summary: string | null = null,
+        linkedCharacter: DBCharacter | null = null
     ) {
         const charName = character.name;
         const userName = persona?.name || 'User';
@@ -92,6 +93,16 @@ export const contextManager = {
             return text
                 .replace(/{{char}}/gi, charName)
                 .replace(/{{user}}/gi, userName);
+        };
+
+        const replaceLinkedVariables = (text: string) => {
+            if (!text) return '';
+            // When using a character AS a persona/user:
+            // {{char}} (them) -> userName (us)
+            // {{user}} (us) -> charName (them)
+            return text
+                .replace(/{{char}}/gi, userName)
+                .replace(/{{user}}/gi, charName);
         };
 
         // --- System Prompt Construction ---
@@ -104,7 +115,10 @@ export const contextManager = {
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
         // Persona Description (This is now the "Self" description)
-        if (persona) {
+        if (linkedCharacter) {
+            let userIntro = `${userName} is a ${replaceLinkedVariables(linkedCharacter.appearance || '')}. who is ${replaceLinkedVariables(linkedCharacter.personality || '')}. ${userName} ${replaceLinkedVariables(linkedCharacter.description || '')}`;
+            systemPromptParts.push(userIntro);
+        } else if (persona) {
             systemPromptParts.push(`Your Profile:\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
         }
 
@@ -185,7 +199,8 @@ export const contextManager = {
         history: DBMessage[],
         relevantMemories: DBMemory[] = [],
         lorebookContent: { content: string; createdAt: string }[] = [],
-        summary: string | null = null
+        summary: string | null = null,
+        linkedCharacter: DBCharacter | null = null
     ) {
         const charName = character.name;
         const userName = persona?.name || 'User';
@@ -199,24 +214,47 @@ export const contextManager = {
 
         // --- System Prompt Construction ---
         const systemPromptParts = [];
+
         // Standard Llama 3 System Header
         systemPromptParts.push(`[Main]`);
-        systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
-        systemPromptParts.push(`Memories of past events and interactions are provided below. Use them to inform your responses.`);
-        systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
-        systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
+        systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
 
+        // Character Description
+        systemPromptParts.push(`[Character Info]`);
         let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
         systemPromptParts.push(characterIntro);
 
-        if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
-
-        // Persona injection
-        if (persona) {
-            // User requested specific formatting for persona? They just showed it in the example.
-            // Let's stick to a simple description for now or append to system.
-            systemPromptParts.push(`[User Persona]\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
+        // Persona Description (User) - Now supports Linked Character
+        systemPromptParts.push(`[User Persona]`);
+        if (linkedCharacter) {
+            let userIntro = `${userName} is a ${replaceVariables(linkedCharacter.appearance || '')}. who is ${replaceVariables(linkedCharacter.personality || '')}. ${userName} ${replaceVariables(linkedCharacter.description || '')}`;
+            systemPromptParts.push(userIntro);
+        } else if (persona) {
+            systemPromptParts.push(`Name: ${userName}\n${replaceVariables(persona.description || '')}`);
+        } else {
+            // Basic User
         }
+
+        // Scenario
+        systemPromptParts.push(`[Scenario]`);
+        if (character.scenario) {
+            systemPromptParts.push(`${replaceVariables(character.scenario)}`);
+        }
+
+
+        // This block was moved/modified above
+        // let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
+        // systemPromptParts.push(characterIntro);
+
+        // This block was moved/modified above
+        // if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
+
+        // Persona injection (This block is now handled by the linkedCharacter/persona logic above)
+        // if (persona) {
+        //     // User requested specific formatting for persona? They just showed it in the example.
+        //     // Let's stick to a simple description for now or append to system.
+        //     systemPromptParts.push(`[User Persona]\nName: ${persona.name}\n${replaceVariables(persona.description || '')}`);
+        // }
 
         if (character.systemPrompt) systemPromptParts.push(replaceVariables(character.systemPrompt));
 
@@ -251,7 +289,7 @@ export const contextManager = {
                 return `[${timeAgo}]: ${entry.content}`;
             });
 
-            systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
+            systemPromptParts.push(`[World Info]${formattedEntries.join('\n')}`);
         }
 
         // Memories Injection
@@ -280,9 +318,11 @@ export const contextManager = {
 
                 return `[${timeAgo}] ${replaceVariables(m.content)}`;
             }).join('\n');
-            systemPromptParts.push(`[Memories]\n${memoryText}`);
+            systemPromptParts.push(`[Memories]${memoryText}`);
         }
 
+        systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+        systemPromptParts.push(`[Begin Roleplay]`);
         const systemContent = systemPromptParts.join('\n');
 
         // --- Llama 3 Formatting ---

@@ -1,18 +1,14 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { CONFIG } from '@/config';
-import { db } from '@/lib/db'; // Assuming this exists, I need to verify
+import { db } from '@/lib/db';
 import { characterVideos, characters } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
-import { pipeline } from 'stream';
-import { promisify } from 'util';
-
-const streamPipeline = promisify(pipeline);
 
 // Helper to upload image to ComfyUI
 async function uploadImageToComfy(imagePath: string, filename: string) {
+    console.log(`[Video Gen] Uploading image: ${filename}`);
     const formData = new FormData();
     const fileBuffer = fs.readFileSync(imagePath);
     const blob = new Blob([fileBuffer], { type: 'image/png' }); // Assuming PNG for now
@@ -54,8 +50,10 @@ async function getHistory(promptId: string) {
 }
 
 export async function POST(req: NextRequest) {
+    console.log('[Video Gen] Received generation request');
     try {
         const { characterId } = await req.json();
+        console.log(`[Video Gen] Processing for characterId: ${characterId}`);
         if (!characterId) {
             return NextResponse.json({ error: 'Missing characterId' }, { status: 400 });
         }

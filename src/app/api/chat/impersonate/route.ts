@@ -43,25 +43,32 @@ export async function POST(request: NextRequest) {
         const memories = await memoryService.searchMemories(character.id, query);
 
         // If persona is linked to a DIFFERENT character, fetch their memories too
-        if (persona && (persona as any).characterId && (persona as any).characterId !== character.id) {
-            console.log(`[Impersonate API] Fetching linked memories for character ${(persona as any).characterId}`);
-            const linkedMemories = await memoryService.searchMemories((persona as any).characterId, query);
-            if (linkedMemories.length > 0) {
-                console.log(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
-                // Add them to the list
-                memories.push(...linkedMemories);
+        let linkedCharacter = null;
+        if (persona && (persona as any).characterId) {
+            // Fetch the actual linked character object
+            if ((persona as any).characterId !== character.id) {
+                console.log(`[Impersonate API] Fetching linked character ${(persona as any).characterId}`);
+                linkedCharacter = await characterService.getById((persona as any).characterId);
 
-                // Re-sort and limit to 10 to respect the global limit
-                // We assume searchMemories returns objects with a 'score' property
+                if (linkedCharacter) {
+                    const linkedMemories = await memoryService.searchMemories(linkedCharacter.id, query);
+                    if (linkedMemories.length > 0) {
+                        console.log(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
+                        memories.push(...linkedMemories);
+                    }
+                }
+            } else {
+                // Linked to SAME character (unlikely but possible)
+                linkedCharacter = character;
+            }
+
+            // Re-sort memories
+            if (memories.length > 0) {
                 memories.sort((a: any, b: any) => {
                     if (b.score !== a.score) return b.score - a.score;
                     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                 });
-
-                // Keep only top 10
-                if (memories.length > 10) {
-                    memories.length = 10;
-                }
+                if (memories.length > 10) memories.length = 10;
             }
         }
 
@@ -91,7 +98,8 @@ export async function POST(request: NextRequest) {
             history,
             memories,
             lorebookContent,
-            session.summary
+            session.summary,
+            linkedCharacter
         );
 
         // 4. Call LLM

@@ -60,6 +60,34 @@ export async function POST(request: NextRequest) {
         console.log(`[Regenerate API] Searching memories for character ${character.id} with query: "${content}"`);
         const memories = await memoryService.searchMemories(character.id, content);
 
+        // Linked Character Logic
+        let linkedCharacter = null;
+        if (persona && (persona as any).characterId) {
+            if ((persona as any).characterId !== character.id) {
+                console.log(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
+                linkedCharacter = await characterService.getById((persona as any).characterId);
+
+                if (linkedCharacter) {
+                    const linkedMemories = await memoryService.searchMemories(linkedCharacter.id, content);
+                    if (linkedMemories.length > 0) {
+                        console.log(`[Regenerate API] Found ${linkedMemories.length} linked memories`);
+                        memories.push(...linkedMemories);
+                    }
+                }
+            } else {
+                linkedCharacter = character;
+            }
+
+            // Re-sort memories
+            if (memories.length > 0) {
+                memories.sort((a: any, b: any) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                });
+                if (memories.length > 10) memories.length = 10;
+            }
+        }
+
         // Scan Lorebooks
         let lorebookContent: { content: string; createdAt: string }[] = [];
         const lorebooks = session.lorebooks ? JSON.parse(session.lorebooks) : (character.lorebooks ? JSON.parse(character.lorebooks) : []);
@@ -77,7 +105,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Build Prompt
-        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary);
+        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter);
 
         // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
