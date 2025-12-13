@@ -14,6 +14,7 @@ interface Message {
     id?: number;
     swipes?: string; // JSON string
     currentIndex?: number;
+    audioPaths?: string; // JSON string array of paths
 }
 
 interface CharacterDetails {
@@ -103,6 +104,11 @@ export default function ChatPage() {
 
     // Copy State
     const [copiedId, setCopiedId] = useState<number | null>(null);
+
+    // Audio State
+    const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+    const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     const handleCopy = (content: string, id: number) => {
         navigator.clipboard.writeText(content);
@@ -873,9 +879,13 @@ export default function ChatPage() {
         });
     };
 
-    // Scroll to bottom
+    // Scroll to bottom only when new messages are added
+    const prevMessagesLength = useRef(messages.length);
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messages.length > prevMessagesLength.current) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+        prevMessagesLength.current = messages.length;
     }, [messages]);
 
 
@@ -917,6 +927,36 @@ export default function ChatPage() {
     };
 
     const deleteMessage = async (id: number) => {
+        const msg = messages.find((m: any) => m.id === id);
+        // Check if we should delete just a swipe or the whole message
+        const isSwipeDelete = msg && msg.role === 'assistant' && msg.swipes && JSON.parse(msg.swipes).length > 1;
+
+        if (isSwipeDelete) {
+            if (!confirm('Delete this response variant?')) return;
+            try {
+                const res = await fetch(`/api/messages/${id}/swipe`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index: msg.currentIndex || 0 })
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.deletedMessage) {
+                        // Should not happen if we checked length > 1, but safe fallback
+                        setMessages(prev => prev.filter((m: any) => m.id !== id));
+                    } else {
+                        // Update message with new content/index
+                        setMessages(prev => prev.map((m: any) => m.id === id ? result.message : m));
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to delete swipe', e);
+            }
+            return;
+        }
+
+        // Standard delete (full message)
         if (!confirm('Are you sure you want to delete this message? All subsequent messages will also be deleted.')) return;
 
         try {
@@ -980,19 +1020,67 @@ export default function ChatPage() {
         }
     };
 
-    const playTTS = async (text: string, messageId?: number, swipeIndex: number = 0) => {
+    const playTTS = async (text: string, messageId?: number, swipeIndex: number = 0, regenerate: boolean = false) => {
         if (!character) return;
+
+        // Toggle Play/Pause if clicking same message and not regenerating
+        if (messageId && messageId === playingMessageId && currentAudio && !regenerate) {
+            if (isPlaying) {
+                currentAudio.pause();
+            } else {
+                currentAudio.play();
+            }
+            return;
+        }
+
+        // Stop existing audio
+        if (currentAudio) {
+            currentAudio.pause();
+            setCurrentAudio(null);
+            setIsPlaying(false);
+            setPlayingMessageId(null);
+        }
+
         try {
             const res = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, characterId: character.id, messageId, swipeIndex })
+                body: JSON.stringify({ text, characterId: character.id, messageId, swipeIndex, regenerate })
             });
+
             if (res.ok) {
                 const blob = await res.blob();
                 const url = URL.createObjectURL(blob);
                 const audio = new Audio(url);
+
+                audio.onplay = () => {
+                    setIsPlaying(true);
+                    if (messageId) setPlayingMessageId(messageId);
+                };
+                audio.onpause = () => setIsPlaying(false);
+                audio.onended = () => {
+                    setIsPlaying(false);
+                    setPlayingMessageId(null);
+                };
+
+                setCurrentAudio(audio);
                 audio.play();
+
+                // Update local state to show "Play" icon immediately (if generating for first time)
+                if (messageId) {
+                    setMessages(prev => prev.map(m => {
+                        if (m.id === messageId) {
+                            let paths: string[] = [];
+                            try {
+                                paths = m.audioPaths ? JSON.parse(m.audioPaths) : [];
+                            } catch (e) { }
+                            // Placeholder update as before
+                            paths[swipeIndex] = paths[swipeIndex] || 'temp-generated';
+                            return { ...m, audioPaths: JSON.stringify(paths) };
+                        }
+                        return m;
+                    }));
+                }
             } else {
                 console.error('TTS failed');
             }
@@ -1557,7 +1645,14 @@ export default function ChatPage() {
                                     : 'bg-gray-700 text-gray-100 rounded-bl-none'
                                     }`}
                             >
-                                <div className="whitespace-pre-wrap">{formatMessage(msg.content)}</div>
+                                <div className="whitespace-pre-wrap">
+                                    {/* Spacer for controls on mobile to prevent overlap */}
+                                    <div
+                                        className={`float-right h-6 md:hidden ${msg.role === 'assistant' ? 'w-28' : 'w-12'}`}
+                                        aria-hidden="true"
+                                    />
+                                    {formatMessage(msg.content)}
+                                </div>
 
                                 {/* Log Button */}
                                 {msg.promptUsed && (
@@ -1602,15 +1697,53 @@ export default function ChatPage() {
                                 )}
                                 <div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     {msg.role === 'assistant' && (
-                                        <button
-                                            onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0)}
-                                            className="text-gray-400 hover:text-blue-400 p-1"
-                                            title="Play Voice"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
-                                            </svg>
-                                        </button>
+                                        <>
+                                            {(() => {
+                                                const hasAudio = (() => {
+                                                    try {
+                                                        const paths = msg.audioPaths ? JSON.parse(msg.audioPaths) : [];
+                                                        return !!paths[msg.currentIndex || 0];
+                                                    } catch (e) { return false; }
+                                                })();
+
+                                                return (
+                                                    <>
+                                                        <button
+                                                            onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0, false)}
+                                                            className="text-gray-400 hover:text-blue-400 p-1"
+                                                            title={hasAudio ? (isPlaying && playingMessageId === msg.id ? "Pause" : "Play") : "Generate Audio"}
+                                                        >
+                                                            {hasAudio ? (
+                                                                isPlaying && playingMessageId === msg.id ? (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                                                        <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0A.75.75 0 0115 4.5h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H15a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                                                        <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                )
+                                                            ) : (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                        {hasAudio && (
+                                                            <button
+                                                                onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0, true)}
+                                                                className="text-gray-400 hover:text-blue-400 p-1"
+                                                                title="Regenerate Audio"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </>
                                     )}
                                     <button
                                         onClick={() => handleCopy(msg.content, (msg as any).id || idx)}
@@ -1618,11 +1751,11 @@ export default function ChatPage() {
                                         title="Copy"
                                     >
                                         {copiedId === ((msg as any).id || idx) ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3 text-green-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-green-400">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                             </svg>
                                         ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5" />
                                             </svg>
                                         )}
@@ -1632,7 +1765,7 @@ export default function ChatPage() {
                                         className="text-gray-400 hover:text-red-400 p-1"
                                         title="Delete from here"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                         </svg>
                                     </button>

@@ -25,3 +25,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        const { id } = await params;
+        const body = await request.json();
+        const { index } = body;
+
+        const messageId = parseInt(id);
+
+        if (!id || isNaN(messageId) || typeof index !== 'number') {
+            return new NextResponse('Invalid parameters', { status: 400 });
+        }
+
+        const result = await chatService.deleteSwipe(messageId, index);
+
+        if (!result.success && !result.deletedMessage) {
+            return new NextResponse(result.error || 'Failed to delete swipe', { status: 400 });
+        }
+
+        return NextResponse.json(result);
+    } catch (error) {
+        console.error('[Swipe API] Error deleting swipe:', error);
+        return new NextResponse('Internal Server Error', { status: 500 });
+    }
+}

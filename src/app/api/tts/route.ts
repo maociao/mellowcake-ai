@@ -7,7 +7,7 @@ import fs from 'fs';
 
 export async function POST(request: NextRequest) {
     try {
-        const { text, characterId, messageId, swipeIndex = 0 } = await request.json();
+        const { text, characterId, messageId, swipeIndex = 0, regenerate = false } = await request.json();
 
         if (!text || !characterId) {
             return new NextResponse('Missing text or characterId', { status: 400 });
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
             fs.mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
         }
 
-        if (messageId) {
+        if (messageId && !regenerate) {
             const message = await db.query.chatMessages.findFirst({
                 where: eq(chatMessages.id, messageId)
             });

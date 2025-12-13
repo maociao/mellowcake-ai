@@ -104,6 +104,70 @@ export const chatService = {
             .returning();
     },
 
+    async deleteSwipe(messageId: number, swipeIndex: number) {
+        const msg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
+        if (!msg) return { success: false, deletedMessage: false };
+
+        const swipes = msg.swipes ? JSON.parse(msg.swipes) : [msg.content];
+
+        // If it's the only swipe, delete the message completely
+        if (swipes.length <= 1) {
+            await this.deleteMessageFrom(messageId);
+            return { success: true, deletedMessage: true };
+        }
+
+        // Validate index
+        if (swipeIndex < 0 || swipeIndex >= swipes.length) {
+            return { success: false, error: 'Invalid swipe index' };
+        }
+
+        // Remove the swipe at index
+        swipes.splice(swipeIndex, 1);
+
+        // Handle Audio Paths
+        let audioPaths: string[] = [];
+        if (msg.audioPaths) {
+            try {
+                audioPaths = JSON.parse(msg.audioPaths);
+                if (Array.isArray(audioPaths)) {
+                    // Remove the corresponding audio path if it exists
+                    // Note: audioPaths array might be sparse or shorter than swipes if generation failed
+                    if (swipeIndex < audioPaths.length) {
+                        audioPaths.splice(swipeIndex, 1);
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing audioPaths during swipe delete:', e);
+            }
+        }
+
+        // Determine new Current Index
+        let newIndex = msg.currentIndex || 0;
+        // If we deleted the current or a previous item, we need to adjust or clamp the index
+        if (swipeIndex === newIndex) {
+            // If we deleted the active one, show the previous one, or 0
+            newIndex = Math.max(0, newIndex - 1);
+        } else if (swipeIndex < newIndex) {
+            // If we deleted one before the current, shift index down
+            newIndex--;
+        }
+        // If we deleted one after, newIndex stays same unless it was out of bounds (handled by clamp logic implicitly if we were careful, but max(0, length-1) is safer)
+        if (newIndex >= swipes.length) newIndex = swipes.length - 1;
+
+
+        const updatedMsg = await db.update(chatMessages)
+            .set({
+                swipes: JSON.stringify(swipes),
+                currentIndex: newIndex,
+                content: swipes[newIndex],
+                audioPaths: JSON.stringify(audioPaths)
+            })
+            .where(eq(chatMessages.id, messageId))
+            .returning();
+
+        return { success: true, deletedMessage: false, message: updatedMsg[0] };
+    },
+
     async getMessages(sessionId: number) {
         return await db.select()
             .from(chatMessages)
