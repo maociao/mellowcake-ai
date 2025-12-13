@@ -11,7 +11,7 @@ import { trimResponse } from '@/lib/text-utils';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { sessionId, content, model, personaId, lorebooks } = body;
+        const { sessionId, content, model, personaId, lorebooks, options, trimLength } = body;
 
         if (!sessionId || !content) {
             return new NextResponse('Missing sessionId or content', { status: 400 });
@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
         const history = await chatService.getMessages(sessionId);
         console.log(`[Chat API] Retrieved ${history.length} messages from history`);
 
-        // 4. Build Context (Raw Llama 3 Prompt)
         // 4. Build Context (Raw Llama 3 Prompt)
         // Expand memory search to include recent context (last 3 messages + current)
         const memoryContext = [
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
         let contextLimit = 8192;
 
         // Check Context Usage & Summarize if needed (e.g., > 80% usage)
-        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.8; // Using 4 chars per token as a safer estimate
+        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.95; // Using 4 chars per token as a safer estimate
 
         if (rawPrompt.length > SAFE_CHAR_LIMIT) {
             console.log(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);
@@ -156,7 +155,7 @@ export async function POST(request: NextRequest) {
 
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
-            temperature: 1.12
+            ...options
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 
@@ -169,7 +168,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Trim response to 800 chars / complete sentence
-        responseContent = trimResponse(responseContent);
+        responseContent = trimResponse(responseContent, trimLength || 800);
 
         // 6. Save Assistant Message with Prompt
         const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);

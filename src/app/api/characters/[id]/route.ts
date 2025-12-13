@@ -62,7 +62,7 @@ export async function PATCH(
 
         const body = await request.json();
         const updatedCharacter = await characterService.update(id, body);
-        return NextResponse.json(updatedCharacter[0]);
+        return NextResponse.json(updatedCharacter);
     } catch (error) {
         console.error('Error updating character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });

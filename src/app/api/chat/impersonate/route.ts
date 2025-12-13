@@ -11,7 +11,7 @@ import { trimResponse } from '@/lib/text-utils';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { sessionId, personaId } = body;
+        const { sessionId, personaId, options, trimLength } = body;
 
         if (!sessionId) {
             return new NextResponse('Missing sessionId', { status: 400 });
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
         const responseContent = await llmService.generate(model, prompt, {
             stop: ['<|eot_id|>', `${character.name}:`], // Stop if it tries to generate character response
-            temperature: 1.12
+            ...options
         });
 
         // Clean up response
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Trim response
-        cleaned = trimResponse(cleaned);
+        cleaned = trimResponse(cleaned, trimLength || 800);
 
         return NextResponse.json({ content: cleaned });
 

@@ -78,7 +78,13 @@ export async function POST(req: NextRequest) {
         // Avatar path is likely relative to public or absolute. 
         // If it starts with /, it might be in public.
         let localAvatarPath = character.avatarPath;
-        if (localAvatarPath.startsWith('/')) {
+        if (localAvatarPath.startsWith('/api/avatars/')) {
+            // It's a dynamic route path: /api/avatars/filename.png
+            const filename = localAvatarPath.replace('/api/avatars/', '');
+            // Character avatars are stored in public/characters
+            localAvatarPath = path.join(process.cwd(), 'public', 'characters', filename);
+        } else if (localAvatarPath.startsWith('/')) {
+            // Legacy path or direct public path
             localAvatarPath = path.join(process.cwd(), 'public', localAvatarPath);
         }
 

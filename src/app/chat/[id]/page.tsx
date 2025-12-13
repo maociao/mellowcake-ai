@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { VoiceBankModal } from '@/components/VoiceBankModal';
+import { AvatarPicker } from '@/components/AvatarPicker';
+import { useSettingsStore } from '@/lib/store/settings-store';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -22,6 +24,7 @@ interface CharacterDetails {
     name: string;
     avatarPath: string;
     description?: string;
+    appearance?: string;
     firstMessage?: string;
     scenario?: string;
     systemPrompt?: string;
@@ -84,6 +87,9 @@ export default function ChatPage() {
     const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
     const [editSessionName, setEditSessionName] = useState('');
 
+    // LLM Settings
+    const { temperature, top_p, top_k, min_p, num_predict, trimLength } = useSettingsStore();
+
     // Settings State
     const [personas, setPersonas] = useState<Persona[]>([]);
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([]);
@@ -93,6 +99,7 @@ export default function ChatPage() {
 
     // Edit Modals State
     const [showCharEdit, setShowCharEdit] = useState(false);
+    const [editAvatarPath, setEditAvatarPath] = useState<string | null>(null);
     const [showPersonaEdit, setShowPersonaEdit] = useState<Persona | 'new' | null>(null);
     const [showLorebookManage, setShowLorebookManage] = useState(false);
     const [editingLorebook, setEditingLorebook] = useState<Lorebook | 'new' | null>(null);
@@ -698,7 +705,6 @@ export default function ChatPage() {
 
 
 
-    // Update character defaults
     const updateCharacter = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!character) return;
@@ -722,6 +728,23 @@ export default function ChatPage() {
             }
         } catch (e) {
             console.error('Failed to update character', e);
+        }
+    };
+
+    const deleteCharacter = async () => {
+        if (!character) return;
+        if (!confirm('Are you sure you want to delete this character? This will permanently delete the character, all chat sessions, voices, images, and videos. This action cannot be undone.')) return;
+
+        try {
+            const res = await fetch(`/api/characters/${character.id}`, { method: 'DELETE' });
+            if (res.ok) {
+                router.push('/');
+            } else {
+                alert('Failed to delete character');
+            }
+        } catch (e) {
+            console.error('Failed to delete character', e);
+            alert('Error deleting character');
         }
     };
 
@@ -897,7 +920,11 @@ export default function ChatPage() {
             const res = await fetch('/api/chat/regenerate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageId })
+                body: JSON.stringify({
+                    messageId,
+                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    trimLength
+                })
             });
             if (res.ok) {
                 const updatedMsg = await res.json();
@@ -997,7 +1024,9 @@ export default function ChatPage() {
                     sessionId: currentSessionId,
                     content: userMessage.content,
                     personaId: selectedPersonaId,
-                    lorebooks: selectedLorebooks
+                    lorebooks: selectedLorebooks,
+                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    trimLength
                 }),
             });
 
@@ -1100,7 +1129,9 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: currentSessionId,
-                    personaId: selectedPersonaId
+                    personaId: selectedPersonaId,
+                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    trimLength
                 })
             });
             if (res.ok) {
@@ -1115,6 +1146,12 @@ export default function ChatPage() {
     };
 
     const currentPersona = personas.find(p => p.id === selectedPersonaId);
+
+    useEffect(() => {
+        if (showCharEdit && character) {
+            setEditAvatarPath(character.avatarPath);
+        }
+    }, [showCharEdit, character]);
 
     if (!character) {
         return <div className="p-4 text-center text-white">Loading...</div>;
@@ -1217,17 +1254,26 @@ export default function ChatPage() {
 
                         {charEditTab === 'details' ? (
                             <form onSubmit={updateCharacter} className="space-y-4">
+                                <AvatarPicker
+                                    currentAvatar={editAvatarPath}
+                                    onAvatarChange={setEditAvatarPath}
+                                    generateContext={character.appearance || ''}
+                                />
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Name</label>
-                                    <input name="name" defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                    <label className="block text-sm font-medium text-gray-400">Name <span className="text-red-500">*</span></label>
+                                    <input name="name" required defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Description</label>
-                                    <textarea name="description" defaultValue={character.description} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                    <label className="block text-sm font-medium text-gray-400">Appearance (Age, gender, features)</label>
+                                    <input name="appearance" defaultValue={character.appearance || ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="e.g. Tall, blue eyes..." />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Personality</label>
                                     <textarea name="personality" defaultValue={character.personality} rows={2} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400">Background Story</label>
+                                    <textarea name="description" defaultValue={character.description} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Scenario</label>
@@ -1257,7 +1303,14 @@ export default function ChatPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end pt-4">
+                                <div className="flex justify-between pt-4 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={deleteCharacter}
+                                        className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded"
+                                    >
+                                        Delete Character
+                                    </button>
                                     <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save Changes</button>
                                 </div>
                             </form>
@@ -1648,7 +1701,7 @@ export default function ChatPage() {
                                 <div className="whitespace-pre-wrap">
                                     {/* Spacer for controls on mobile to prevent overlap */}
                                     <div
-                                        className={`float-right h-6 md:hidden ${msg.role === 'assistant' ? 'w-28' : 'w-12'}`}
+                                        className="float-right h-6 md:hidden"
                                         aria-hidden="true"
                                     />
                                     {formatMessage(msg.content)}

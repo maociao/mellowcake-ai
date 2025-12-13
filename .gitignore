@@ -63,9 +63,10 @@ tts_service/uploads
 tts_service/outputs
 
 # media
-/voices
-/public/voices
-/public/audio-cache
-/public/videos
-/public/characters
-/public/personas
+voices/*
+public/voices/*
+public/audio-cache/*
+public/videos/*
+public/characters/*
+public/personas/*
+public/temp/*

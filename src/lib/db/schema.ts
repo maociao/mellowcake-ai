@@ -15,6 +15,7 @@ export const characters = sqliteTable('characters', {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
     description: text('description'),
+    appearance: text('appearance'),
     avatarPath: text('avatar_path'),
     firstMessage: text('first_message'),
     personality: text('personality'),

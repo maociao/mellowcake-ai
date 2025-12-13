@@ -110,8 +110,10 @@ export const contextManager = {
 
         // Character Description (This is now the "Other" description)
         systemPromptParts.push(`You are talking to ${charName}.`);
-        if (character.description) systemPromptParts.push(`${charName}'s Description: ${replaceVariables(character.description)}`);
-        if (character.personality) systemPromptParts.push(`${charName}'s Personality: ${replaceVariables(character.personality)}`);
+
+        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
+        systemPromptParts.push(characterIntro);
+
         if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
 
         // Lorebook Injection (World Info)
@@ -198,15 +200,15 @@ export const contextManager = {
         // --- System Prompt Construction ---
         const systemPromptParts = [];
         // Standard Llama 3 System Header
-        // "You are {{char}}. Reply as {{char}} only..."
         systemPromptParts.push(`[Main]`);
         systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
         systemPromptParts.push(`Memories of past events and interactions are provided below. Use them to inform your responses.`);
         systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
 
-        if (character.description) systemPromptParts.push(replaceVariables(character.description));
-        if (character.personality) systemPromptParts.push(`${charName}'s personality: ${replaceVariables(character.personality)}`);
+        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
+        systemPromptParts.push(characterIntro);
+
         if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
 
         // Persona injection

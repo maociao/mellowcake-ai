@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { SettingsModal } from '@/components/SettingsModal';
+import { CharacterCreateModal } from '@/components/CharacterCreateModal';
 
 interface Character {
   id: number;
@@ -14,8 +16,10 @@ interface Character {
 export default function Home() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
 
-  useEffect(() => {
+  const fetchCharacters = () => {
     fetch('/api/characters')
       .then((res) => res.json())
       .then((data) => {
@@ -26,6 +30,10 @@ export default function Home() {
         console.error(err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchCharacters();
   }, []);
 
   if (loading) {
@@ -42,10 +50,31 @@ export default function Home() {
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
           Mellowcake AI
         </h1>
-        {/* Settings Icon could go here */}
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 text-gray-400 hover:text-white transition-colors"
+          title="LLM Settings"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+          </svg>
+        </button>
       </header>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {/* Add Character Card */}
+        <div
+          onClick={() => setShowCreate(true)}
+          className="aspect-[3/4] rounded-xl border-2 border-dashed border-gray-700 hover:border-blue-500 flex items-center justify-center cursor-pointer transition-colors group bg-gray-900/50"
+        >
+          <div className="text-gray-600 group-hover:text-blue-500 flex flex-col items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mb-2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span className="font-semibold text-sm">Add Character</span>
+          </div>
+        </div>
+
         {characters.map((char) => (
           <div
             key={char.id}
@@ -61,42 +90,16 @@ export default function Home() {
                 video.currentTime = 0;
               }
             }}
-            onClick={(e) => {
-              // Mobile tap logic
-              const isMobile = window.matchMedia('(max-width: 768px)').matches;
-              if (isMobile) {
-                const video = e.currentTarget.querySelector('video');
-                if (video) {
-                  if (video.paused) {
-                    video.play();
-                  } else {
-                    // If playing, second tap navigates
-                    // But we need to distinguish between "pause" and "navigate"
-                    // User said: "first press ... plays ... double tap starts chat"
-                    // Double tap is hard to detect with just onClick without delay.
-                    // Let's implement: Tap -> Toggle Play. Double Tap -> Navigate.
-                    // We can use a custom hook or just check time between clicks.
-                    // For now, let's just use the Link component but prevent default if we want to play?
-                    // Actually, wrapping in Link makes it navigate immediately.
-                    // I should remove Link wrapper and handle navigation programmatically.
-                  }
-                }
-              }
-            }}
           >
             <Link href={`/chat/${char.id}`}
               onClick={(e) => {
                 const isMobile = window.matchMedia('(max-width: 768px)').matches;
                 if (isMobile) {
-                  // Check for double tap
                   const now = Date.now();
                   const lastClick = (e.currentTarget as any).lastClick || 0;
                   if (now - lastClick < 300) {
-                    // Double tap - allow navigation
-                    return;
+                    return; // Double tap - allow navigation
                   }
-
-                  // Single tap - toggle video
                   e.preventDefault();
                   (e.currentTarget as any).lastClick = now;
 
@@ -124,10 +127,11 @@ export default function Home() {
             {char.defaultVideoPath && (
               <video
                 src={char.defaultVideoPath}
-                className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                 loop
                 muted
                 playsInline
+                // onPlay/onPause handled by parent hover to avoid flickering or complexity
                 onPlay={(e) => e.currentTarget.classList.remove('opacity-0')}
                 onPause={(e) => e.currentTarget.classList.add('opacity-0')}
               />
@@ -143,9 +147,18 @@ export default function Home() {
 
       {characters.length === 0 && (
         <div className="text-center text-gray-400 mt-10">
-          No characters found.
+          No characters found. Tap + to add one.
         </div>
       )}
+
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <CharacterCreateModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={(newChar) => {
+          setCharacters(prev => [...prev, newChar]);
+        }}
+      />
     </main>
   );
 }

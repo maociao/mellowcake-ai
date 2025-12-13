@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { characters } from '@/lib/db/schema';
+import { characters, chatSessions, chatMessages, memories, characterVideos, personas } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
@@ -49,7 +49,7 @@ export const characterService = {
         // Actually, drizzle's query builder is powerful.
         // Let's use db.query.characters.findMany with with: { videos: ... } if relations were set up.
         // I didn't set up the relation in the schema for characters -> videos yet, only videos -> characters.
-        // Let's add the relation first or just do a raw query / manual join.
+        // Let's add the relation first or just do a manual join.
         // Adding relation to schema is cleaner but requires editing schema again.
         // Let's just do a manual join logic here for now or update schema.
         // Actually, I can just fetch all characters and all default videos and map them.
@@ -90,7 +90,7 @@ export const characterService = {
         if (data.lorebooks) {
             insertData.lorebooks = JSON.stringify(data.lorebooks);
         }
-        return await db.insert(characters).values(insertData).returning();
+        return (await db.insert(characters).values(insertData).returning())[0];
     },
 
     async update(id: number, data: Partial<typeof characters.$inferInsert> & { lorebooks?: string[] }) {
@@ -98,11 +98,66 @@ export const characterService = {
         if (data.lorebooks) {
             updateData.lorebooks = JSON.stringify(data.lorebooks);
         }
-        return await db.update(characters).set(updateData).where(eq(characters.id, id)).returning();
+        return (await db.update(characters).set(updateData).where(eq(characters.id, id)).returning())[0];
     },
 
     async delete(id: number) {
-        return await db.delete(characters).where(eq(characters.id, id));
+        // 1. Get file paths to delete
+        const char = await this.getById(id);
+        const videos = await db.query.characterVideos.findMany({
+            where: (videos, { eq }) => eq(videos.characterId, id)
+        });
+
+        // 2. Cascade Delete in DB
+        // Messages are set to cascade delete on session delete in schema?
+        // Let's verify schema.
+        // chatMessages.sessionId -> chatSessions.id (onDelete: 'cascade') -> YES
+        // But chatSessions -> characters is NOT cascade in schema usually unless specified.
+        // Let's check schema.ts again or just delete manually to be safe.
+        // memories -> characterId
+        // characterVideos -> characterId (onDelete: 'cascade') -> YES
+
+        // Note: SQLite foreign keys need to be enabled for ON DELETE CASCADE to work.
+        // Drizzle/better-sqlite3 usually enables them if configured?
+        // To be safe, let's delete sessions manually or ensure cascade works.
+        // If we delete character, and sessions reference it...
+
+        // Let's manually delete to be sure about cleanup
+        // Actually, let's just delete related tables first.
+
+        // Delete Videos (DB)
+        await db.delete(characterVideos).where(eq(characterVideos.characterId, id));
+
+        // Delete Memories
+        await db.delete(memories).where(eq(memories.characterId, id));
+
+        // Delete Sessions (will cascade delete messages)
+        await db.delete(chatSessions).where(eq(chatSessions.characterId, id));
+
+        // Delete Personas linked to this character
+        await db.delete(personas).where(eq(personas.characterId, id));
+
+        // Finally remove character
+        await db.delete(characters).where(eq(characters.id, id));
+
+        // 3. Delete Files
+        if (char?.avatarPath && char.avatarPath.startsWith('/')) {
+            const avatarFilePath = path.join(process.cwd(), 'public', char.avatarPath);
+            if (fs.existsSync(avatarFilePath)) {
+                try { fs.unlinkSync(avatarFilePath); } catch (e) { console.error('Failed to delete avatar', e); }
+            }
+        }
+
+        for (const video of videos) {
+            if (video.filePath) {
+                const videoPath = path.join(process.cwd(), 'public', video.filePath.startsWith('/') ? video.filePath.slice(1) : video.filePath);
+                if (fs.existsSync(videoPath)) {
+                    try { fs.unlinkSync(videoPath); } catch (e) { console.error('Failed to delete video file', e); }
+                }
+            }
+        }
+
+        return true;
     },
 
     async importFromPng(filePath: string) {

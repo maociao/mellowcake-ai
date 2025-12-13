@@ -15,7 +15,7 @@ import { eq } from 'drizzle-orm';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { messageId } = body;
+        const { messageId, options, trimLength } = body;
 
         if (!messageId) {
             return new NextResponse('Missing messageId', { status: 400 });
@@ -80,7 +80,6 @@ export async function POST(request: NextRequest) {
         const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary);
 
         // 5. Call LLM
-        // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
         const models = await llmService.getModels();
         const selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
@@ -99,7 +98,7 @@ export async function POST(request: NextRequest) {
         console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}`);
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
-            temperature: 1.12
+            ...options
         });
 
         // Strip character name prefix
@@ -111,7 +110,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Trim response
-        responseContent = trimResponse(responseContent);
+        responseContent = trimResponse(responseContent, trimLength || 800);
 
         // 6. Add as Swipe
         console.log(`[Regenerate API] Adding swipe to message ${messageId}`);
