@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Build Prompt
-        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter);
+        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter, (session as any).responseStyle);
 
         // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
@@ -123,10 +123,18 @@ export async function POST(request: NextRequest) {
             contextLimit
         });
 
-        console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}`);
+        // Calculate effective temperature based on style
+        let effectiveOptions = { ...options };
+        if ((session as any).responseStyle === 'short' && (session as any).shortTemperature != null) {
+            effectiveOptions.temperature = (session as any).shortTemperature;
+        } else if ((session as any).responseStyle === 'long' && (session as any).longTemperature != null) {
+            effectiveOptions.temperature = (session as any).longTemperature;
+        }
+
+        console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}, Temp: ${effectiveOptions.temperature}`);
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
-            ...options
+            ...effectiveOptions
         });
 
         // Strip character name prefix

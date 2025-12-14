@@ -42,6 +42,9 @@ interface ChatSession {
     name: string;
     updatedAt: string;
     personaId?: number;
+    responseStyle?: 'short' | 'long';
+    shortTemperature?: number;
+    longTemperature?: number;
 }
 
 interface Persona {
@@ -88,13 +91,16 @@ export default function ChatPage() {
     const [editSessionName, setEditSessionName] = useState('');
 
     // LLM Settings
-    const { temperature, top_p, top_k, min_p, num_predict, trimLength } = useSettingsStore();
+    const { temperature, top_p, top_k, min_p, num_predict, trimLength, defaultShortTemperature, defaultLongTemperature, updateSettings } = useSettingsStore();
 
     // Settings State
     const [personas, setPersonas] = useState<Persona[]>([]);
     const [lorebooks, setLorebooks] = useState<Lorebook[]>([]);
     const [selectedPersonaId, setSelectedPersonaId] = useState<number | null>(null);
     const [selectedLorebooks, setSelectedLorebooks] = useState<string[]>([]); // Using names
+    const [responseStyle, setResponseStyle] = useState<'short' | 'long'>('long');
+    const [shortTemp, setShortTemp] = useState<number | undefined>(undefined);
+    const [longTemp, setLongTemp] = useState<number | undefined>(undefined);
     const [showSettings, setShowSettings] = useState(false);
 
     // Edit Modals State
@@ -613,6 +619,13 @@ export default function ChatPage() {
                 } else {
                     setSelectedLorebooks([]);
                 }
+                if (data.session.responseStyle) {
+                    setResponseStyle(data.session.responseStyle as 'short' | 'long');
+                } else {
+                    setResponseStyle('long');
+                }
+                setShortTemp(data.session.shortTemperature);
+                setLongTemp(data.session.longTemperature);
             }
         } catch (e) {
             console.error('Failed to load session', e);
@@ -657,6 +670,39 @@ export default function ChatPage() {
                 });
             } catch (e) {
                 console.error('Failed to save session lorebooks', e);
+            }
+        }
+    };
+
+    const handleResponseStyleChange = async (style: 'short' | 'long') => {
+        setResponseStyle(style);
+        if (currentSessionId) {
+            try {
+                await fetch(`/api/chats/${currentSessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ responseStyle: style })
+                });
+            } catch (e) {
+                console.error('Failed to save response style', e);
+            }
+        }
+    };
+
+    const saveTempOverrides = async () => {
+        if (currentSessionId) {
+            try {
+                await fetch(`/api/chats/${currentSessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shortTemperature: shortTemp,
+                        longTemperature: longTemp
+                    })
+                });
+                // Optional: visual feedback
+            } catch (e) {
+                console.error('Failed to save temp overrides', e);
             }
         }
     };
@@ -917,12 +963,16 @@ export default function ChatPage() {
         if (isLoading) return;
         setIsLoading(true);
         try {
+            const effectiveTemp = responseStyle === 'short'
+                ? (defaultShortTemperature !== undefined ? defaultShortTemperature : temperature)
+                : (defaultLongTemperature !== undefined ? defaultLongTemperature : temperature);
+
             const res = await fetch('/api/chat/regenerate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     messageId,
-                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
                     trimLength
                 })
             });
@@ -1017,6 +1067,10 @@ export default function ChatPage() {
         setIsLoading(true);
 
         try {
+            const effectiveTemp = responseStyle === 'short'
+                ? (defaultShortTemperature !== undefined ? defaultShortTemperature : temperature)
+                : (defaultLongTemperature !== undefined ? defaultLongTemperature : temperature);
+
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1025,7 +1079,7 @@ export default function ChatPage() {
                     content: userMessage.content,
                     personaId: selectedPersonaId,
                     lorebooks: selectedLorebooks,
-                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
                     trimLength
                 }),
             });
@@ -1124,13 +1178,17 @@ export default function ChatPage() {
         if (isLoading || !currentSessionId) return;
         setIsLoading(true);
         try {
+            const effectiveTemp = responseStyle === 'short'
+                ? (defaultShortTemperature !== undefined ? defaultShortTemperature : temperature)
+                : (defaultLongTemperature !== undefined ? defaultLongTemperature : temperature);
+
             const res = await fetch('/api/chat/impersonate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: currentSessionId,
                     personaId: selectedPersonaId,
-                    options: { temperature, top_p, top_k, min_p, num_predict },
+                    options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
                     trimLength
                 })
             });
@@ -1343,6 +1401,56 @@ export default function ChatPage() {
 
                             {/* Personas */}
                             <div className="mb-6">
+                                <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2">Response Style</h3>
+                                <div className="flex bg-gray-700 rounded p-1 mb-6">
+                                    <button
+                                        onClick={() => handleResponseStyleChange('short')}
+                                        className={`flex-1 py-2 rounded text-sm font-medium transition-colors ${responseStyle === 'short' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        Short
+                                    </button>
+                                    <button
+                                        onClick={() => handleResponseStyleChange('long')}
+                                        className={`flex-1 py-2 rounded text-sm font-medium transition-colors ${responseStyle === 'long' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        Long
+                                    </button>
+                                </div>
+
+                                {/* Temp Overrides */}
+                                <div className="mb-6 grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-1">Short Temp</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Default"
+                                            className="w-full bg-gray-700 rounded p-2 text-white text-sm"
+                                            value={shortTemp === undefined ? '' : shortTemp}
+                                            onChange={e => {
+                                                const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                                                setShortTemp(val);
+                                            }}
+                                            onBlur={saveTempOverrides}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-1">Long Temp</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Default"
+                                            className="w-full bg-gray-700 rounded p-2 text-white text-sm"
+                                            value={longTemp === undefined ? '' : longTemp}
+                                            onChange={e => {
+                                                const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                                                setLongTemp(val);
+                                            }}
+                                            onBlur={saveTempOverrides}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Persona</h3>
                                     <button onClick={() => setShowPersonaEdit('new')} className="text-xs text-blue-400 hover:text-blue-300">+ New</button>
@@ -1393,6 +1501,8 @@ export default function ChatPage() {
                                     ))}
                                 </div>
                             </div>
+
+                            <hr className="my-6 border-gray-700" />
                         </div>
                     </div>
                 )

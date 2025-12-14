@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Use the new Llama 3 prompt builder
-        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter);
+        // Use the new Llama 3 prompt builder
+        const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter, (session as any).responseStyle);
         console.log(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
 
         // 5. Call LLM (Generate)
@@ -182,9 +183,19 @@ export async function POST(request: NextRequest) {
             contextLimit
         });
 
+        // Calculate effective temperature based on style
+        let effectiveOptions = { ...options };
+        if ((session as any).responseStyle === 'short' && (session as any).shortTemperature != null) {
+            effectiveOptions.temperature = (session as any).shortTemperature;
+            console.log(`[Chat API] Using Short form temperature override: ${effectiveOptions.temperature}`);
+        } else if ((session as any).responseStyle === 'long' && (session as any).longTemperature != null) {
+            effectiveOptions.temperature = (session as any).longTemperature;
+            console.log(`[Chat API] Using Long form temperature override: ${effectiveOptions.temperature}`);
+        }
+
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
-            ...options
+            ...effectiveOptions
         });
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 

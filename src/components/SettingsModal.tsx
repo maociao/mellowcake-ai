@@ -26,6 +26,46 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="space-y-6">
+                    {/* Global Generation Defaults */}
+                    <div className="p-4 bg-gray-700/50 rounded-lg space-y-4">
+                        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Global Defaults</h3>
+                        {/* Global Short Temp */}
+                        <div>
+                            <div className="flex justify-between mb-1">
+                                <label className="text-sm font-medium text-gray-300">Global Short Temp</label>
+                                <span className="text-sm text-blue-400">{settings.defaultShortTemperature ?? 0.7}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0.1"
+                                max="2.0"
+                                step="0.05"
+                                value={settings.defaultShortTemperature ?? 0.7}
+                                onChange={(e) => settings.updateSettings({ defaultShortTemperature: parseFloat(e.target.value) })}
+                                className="w-full"
+                            />
+                        </div>
+
+                        {/* Global Long Temp */}
+                        <div>
+                            <div className="flex justify-between mb-1">
+                                <label className="text-sm font-medium text-gray-300">Global Long Temp</label>
+                                <span className="text-sm text-blue-400">{settings.defaultLongTemperature ?? 1.12}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0.1"
+                                max="2.0"
+                                step="0.05"
+                                value={settings.defaultLongTemperature ?? 1.12}
+                                onChange={(e) => settings.updateSettings({ defaultLongTemperature: parseFloat(e.target.value) })}
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+
+                    <hr className="border-gray-700" />
+
                     {/* Temperature */}
                     <div>
                         <div className="flex justify-between mb-1">

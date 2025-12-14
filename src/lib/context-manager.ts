@@ -83,7 +83,8 @@ export const contextManager = {
         relevantMemories: DBMemory[] = [],
         lorebookContent: { content: string; createdAt: string }[] = [],
         summary: string | null = null,
-        linkedCharacter: DBCharacter | null = null
+        linkedCharacter: DBCharacter | null = null,
+        responseStyle: 'short' | 'long' = 'long'
     ) {
         const charName = character.name;
         const userName = persona?.name || 'User';
@@ -109,10 +110,16 @@ export const contextManager = {
         const systemPromptParts = [];
         // Inverted Role: You are {{user}}. Reply as {{user}} only.
         systemPromptParts.push(`[Main]`);
-        systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
-        systemPromptParts.push(`Past events and memories of the ${charName} are provided below. Use them to inform your responses.`);
-        systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
-        systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
+        if (responseStyle === 'short') {
+            systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Responses should be short and concise. Use markdown.`);
+            systemPromptParts.push(`Past events and memories of the ${charName} are provided below. Use them to inform your responses.`);
+            systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
+        } else {
+            systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Italicize actions and descriptions, and avoid quotation marks. Use markdown.`);
+            systemPromptParts.push(`Past events and memories of the ${charName} are provided below. Use them to inform your responses.`);
+            systemPromptParts.push(`Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
+            systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
+        }
 
         // Persona Description (This is now the "Self" description)
         if (linkedCharacter) {
@@ -200,7 +207,8 @@ export const contextManager = {
         relevantMemories: DBMemory[] = [],
         lorebookContent: { content: string; createdAt: string }[] = [],
         summary: string | null = null,
-        linkedCharacter: DBCharacter | null = null
+        linkedCharacter: DBCharacter | null = null,
+        responseStyle: 'short' | 'long' = 'long'
     ) {
         const charName = character.name;
         const userName = persona?.name || 'User';
@@ -217,7 +225,12 @@ export const contextManager = {
 
         // Standard Llama 3 System Header
         systemPromptParts.push(`[Main]`);
-        systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
+        // Response Style Selection
+        if (responseStyle === 'short') {
+            systemPromptParts.push(`You are ${charName}. You are exchanging messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
+        } else {
+            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
+        }
 
         // Character Description
         systemPromptParts.push(`[Character Info]`);
@@ -321,7 +334,11 @@ export const contextManager = {
             systemPromptParts.push(`[Memories]${memoryText}`);
         }
 
-        systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+        if (responseStyle === 'short') {
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+        } else {
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+        }
         systemPromptParts.push(`[Begin Roleplay]`);
         const systemContent = systemPromptParts.join('\n');
 

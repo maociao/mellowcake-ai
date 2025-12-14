@@ -23,7 +23,7 @@ export const chatService = {
         return [session];
     },
 
-    async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[] }) {
+    async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[]; responseStyle?: 'short' | 'long'; shortTemperature?: number; longTemperature?: number }) {
         const updateData: any = { ...data, updatedAt: new Date().toISOString() };
         if (data.lorebooks) {
             updateData.lorebooks = JSON.stringify(data.lorebooks);

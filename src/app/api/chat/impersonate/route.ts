@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
             memories,
             lorebookContent,
             session.summary,
-            linkedCharacter
+            linkedCharacter,
+            (session as any).responseStyle
         );
 
         // 4. Call LLM
@@ -109,9 +110,20 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Impersonate API] Generating response for persona ${persona?.name || 'User'}...`);
 
+        // Calculate effective temperature based on style
+        let effectiveOptions = { ...options };
+        // Impersonate is arguably always "User" role, but responseStyle dictates the tone.
+        // User didn't specify if impersonation follows the same rule, but typically "Shortform" mode implies the whole chat is in that mode?
+        // Let's apply it for consistency.
+        if ((session as any).responseStyle === 'short' && (session as any).shortTemperature != null) {
+            effectiveOptions.temperature = (session as any).shortTemperature;
+        } else if ((session as any).responseStyle === 'long' && (session as any).longTemperature != null) {
+            effectiveOptions.temperature = (session as any).longTemperature;
+        }
+
         const responseContent = await llmService.generate(model, prompt, {
             stop: ['<|eot_id|>', `${character.name}:`], // Stop if it tries to generate character response
-            ...options
+            ...effectiveOptions
         });
 
         // Clean up response
