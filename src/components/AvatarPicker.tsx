@@ -13,6 +13,9 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
     const [generating, setGenerating] = useState(false);
     const [genStatus, setGenStatus] = useState('');
     const [preview, setPreview] = useState<string | null>(currentAvatar);
+    const [useImg2Img, setUseImg2Img] = useState(false);
+    // Track base image for Img2Img to prevent chaining
+    const [baseImage, setBaseImage] = useState<string | null>(null);
 
     // Update preview if prop changes (and we aren't in middle of something else maybe? No, let's keep it simple)
     // Actually, usually we want internal state to track prop updates or be fully controlled.
@@ -46,6 +49,7 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
             const data = await res.json();
             onAvatarChange(data.path);
             setPreview(data.path);
+            if (useImg2Img) setBaseImage(data.path); // If mode is active, new upload becomes base
         } catch (error) {
             console.error(error);
             alert('Failed to upload image');
@@ -65,10 +69,31 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
 
         try {
             // 1. Start Generation
+            // Determine Source Image
+            // If we have a locked base image, use that. 
+            // If not (e.g. first run), use current preview and lock it for future runs.
+            let effectiveSource = preview;
+            if (useImg2Img) {
+                if (baseImage) {
+                    effectiveSource = baseImage;
+                } else {
+                    // First run of Img2Img: Lock current preview as base
+                    setBaseImage(preview);
+                    effectiveSource = preview;
+                }
+            } else {
+                // Txt2Img: Reset base
+                setBaseImage(null);
+            }
+
             const res = await fetch('/api/images/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description: generateContext })
+                body: JSON.stringify({
+                    description: generateContext,
+                    useImg2Img: useImg2Img && showPreview,
+                    sourceImage: useImg2Img && showPreview ? effectiveSource : undefined
+                })
             });
 
             if (!res.ok) throw new Error('Failed to start generation');
@@ -115,7 +140,25 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
 
     return (
         <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Avatar</label>
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-sm font-medium text-gray-400">Avatar</label>
+                {showPreview && (
+                    <label className="flex items-center space-x-2 text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+                        <input
+                            type="checkbox"
+                            checked={useImg2Img}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseImg2Img(checked);
+                                // Lock current preview as base when enabling, clear when disabling
+                                setBaseImage(checked ? preview : null);
+                            }}
+                            className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-offset-gray-900"
+                        />
+                        <span>Image-to-Image</span>
+                    </label>
+                )}
+            </div>
             <div className="flex flex-col gap-3">
                 <div className="flex gap-2">
                     <label className={`flex-1 flex items-center justify-center px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded cursor-pointer text-gray-300 text-sm border border-gray-600 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>

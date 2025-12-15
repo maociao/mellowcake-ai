@@ -5,7 +5,7 @@ BACKUP_DIR="/home/mellowcake/backups"
 SOURCE_DIR="/home/mellowcake/Code/mellowcake-ai"
 DATE=$(date +%Y-%m-%d_%H-%M-%S)
 LOG_FILE="$BACKUP_DIR/backup.log"
-RETENTION_DAYS=7
+RETENTION_DAYS=720
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
@@ -30,7 +30,7 @@ else
 fi
 
 # Backup Public Assets
-ASSETS=("uploads" "characters" "personas" "videos" "audio-cache" "temp")
+ASSETS=("uploads" "characters" "personas" "videos" "audio-cache")
 for asset in "${ASSETS[@]}"; do
     if [ -d "$SOURCE_DIR/public/$asset" ]; then
         mkdir -p "$TEMP_DIR/public/$asset"
@@ -79,6 +79,10 @@ fi
 if [ -d "$SOURCE_DIR/tts_service/outputs" ]; then
     rm -rf "$SOURCE_DIR/tts_service/outputs/"*
     log "Cleaned tts_service/outputs"
+fi
+if [ -d "$SOURCE_DIR/public/temp" ]; then
+    rm -rf "$SOURCE_DIR/public/temp/"*
+    log "Cleaned public/temp"
 fi
 
 log "Backup completed."

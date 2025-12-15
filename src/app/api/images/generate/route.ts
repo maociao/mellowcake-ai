@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { CONFIG } from '@/config';
 import fs from 'fs';
@@ -18,28 +17,80 @@ async function queuePrompt(workflow: any) {
     return await res.json();
 }
 
-export async function POST(req: NextRequest) {
-    try {
-        const { description } = await req.json();
+// Helper to upload image to ComfyUI
+async function uploadImageToComfy(localFilePath: string): Promise<string> {
+    const fileBuffer = fs.readFileSync(localFilePath);
+    const filename = path.basename(localFilePath);
 
-        // 1. Prepare Workflow
-        const workflowPath = path.join(process.cwd(), 'mellowcake_character_avatar.json');
+    const formData = new FormData();
+    const blob = new Blob([fileBuffer]);
+    formData.append('image', blob, filename);
+    formData.append('overwrite', 'true');
+
+    const res = await fetch(`${CONFIG.COMFY_URL}/upload/image`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to upload image to ComfyUI: ${res.statusText}`);
+    }
+    const data = await res.json();
+    return data.name;
+}
+
+export async function POST(req: NextRequest) {
+    console.log('[Generate API] Received generation request');
+    try {
+        const { description, useImg2Img, sourceImage } = await req.json();
+
+        // 1. Select & Prepare Workflow
+        const workflowFilename = useImg2Img
+            ? 'mellowcake-ai-avatar-image-2-image.json'
+            : 'mellowcake_character_avatar.json';
+
+        const workflowPath = path.join(process.cwd(), workflowFilename);
 
         if (!fs.existsSync(workflowPath)) {
-            return NextResponse.json({ error: 'Avatar workflow file not found' }, { status: 500 });
+            return NextResponse.json({ error: `Workflow file ${workflowFilename} not found` }, { status: 500 });
         }
 
         const workflowStr = fs.readFileSync(workflowPath, 'utf-8');
         const workflow = JSON.parse(workflowStr);
 
-        // 2. Inject Description (Positive Prompt - Node 6)
+        // 2. Handle Image-to-Image Specifics
+        if (useImg2Img && sourceImage) {
+            // Resolve file path (sourceImage is a URL path like /api/avatars/file.png or /characters/file.png)
+            const urlName = path.basename(sourceImage);
+
+            // Check public/temp then public/characters
+            let localPath = path.join(process.cwd(), 'public', 'temp', urlName);
+            if (!fs.existsSync(localPath)) {
+                localPath = path.join(process.cwd(), 'public', 'characters', urlName);
+            }
+
+            if (!fs.existsSync(localPath)) {
+                // If we can't find it locally, we strictly can't upload it to ComfyUI easily without downloading it first 
+                // (if it were external), but here we assume local files.
+                throw new Error('Source image file not found on server');
+            }
+
+            const comfyFilename = await uploadImageToComfy(localPath);
+
+            // Inject into Node 10 (Load Image)
+            if (workflow['10']) {
+                workflow['10'].inputs.image = comfyFilename;
+            }
+        }
+
+        // 3. Inject Description (Positive Prompt - Node 6)
         if (workflow['6'] && description) {
             const currentText = workflow['6'].inputs.text || '';
             // Prepend description to existing prompt text
             workflow['6'].inputs.text = `${description}, ${currentText}`;
         }
 
-        // 3. Randomize Seed (KSampler - Node 3)
+        // 4. Randomize Seed (KSampler - Node 3)
         // Ensure we use a safe large integer
         const seed = Math.floor(Math.random() * 1000000000000000);
 
@@ -47,7 +98,8 @@ export async function POST(req: NextRequest) {
             workflow['3'].inputs.seed = seed;
         }
 
-        // 4. Queue Prompt
+        // 5. Queue Prompt
+        console.log('[Generate API] Queuing ComfyUI workflow:', JSON.stringify(workflow, null, 2));
         const queueRes = await queuePrompt(workflow);
         const promptId = queueRes.prompt_id;
 

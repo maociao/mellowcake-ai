@@ -106,6 +106,8 @@ export default function ChatPage() {
     // Edit Modals State
     const [showCharEdit, setShowCharEdit] = useState(false);
     const [editAvatarPath, setEditAvatarPath] = useState<string | null>(null);
+    const [editAppearance, setEditAppearance] = useState('');
+    const [editPersonality, setEditPersonality] = useState('');
     const [showPersonaEdit, setShowPersonaEdit] = useState<Persona | 'new' | null>(null);
     const [showLorebookManage, setShowLorebookManage] = useState(false);
     const [editingLorebook, setEditingLorebook] = useState<Lorebook | 'new' | null>(null);
@@ -1208,6 +1210,8 @@ export default function ChatPage() {
     useEffect(() => {
         if (showCharEdit && character) {
             setEditAvatarPath(character.avatarPath);
+            setEditAppearance(character.appearance || '');
+            setEditPersonality(character.personality || '');
         }
     }, [showCharEdit, character]);
 
@@ -1315,7 +1319,7 @@ export default function ChatPage() {
                                 <AvatarPicker
                                     currentAvatar={editAvatarPath}
                                     onAvatarChange={setEditAvatarPath}
-                                    generateContext={character.appearance + ' ' + character.personality || ''}
+                                    generateContext={editAppearance + ' ' + editPersonality}
                                 />
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Name <span className="text-red-500">*</span></label>
@@ -1323,11 +1327,23 @@ export default function ChatPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Appearance (Age, gender, features)</label>
-                                    <input name="appearance" defaultValue={character.appearance || ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="e.g. Tall, blue eyes..." />
+                                    <input
+                                        name="appearance"
+                                        value={editAppearance}
+                                        onChange={(e) => setEditAppearance(e.target.value)}
+                                        className="w-full bg-gray-700 rounded p-2 text-white"
+                                        placeholder="e.g. Tall, blue eyes..."
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Personality</label>
-                                    <textarea name="personality" defaultValue={character.personality} rows={2} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                    <textarea
+                                        name="personality"
+                                        value={editPersonality}
+                                        onChange={(e) => setEditPersonality(e.target.value)}
+                                        rows={2}
+                                        className="w-full bg-gray-700 rounded p-2 text-white"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Background Story</label>
