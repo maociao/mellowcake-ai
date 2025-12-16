@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { VoiceBankModal } from '@/components/VoiceBankModal';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSettingsStore } from '@/lib/store/settings-store';
@@ -124,6 +125,50 @@ export default function ChatPage() {
     const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
     const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const emojiButtonRef = useRef<HTMLButtonElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (showEmojiPicker &&
+                emojiPickerRef.current &&
+                !emojiPickerRef.current.contains(event.target as Node) &&
+                emojiButtonRef.current &&
+                !emojiButtonRef.current.contains(event.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [showEmojiPicker]);
+
+    const onEmojiClick = (emojiData: EmojiClickData) => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+            setInput(prev => prev + emojiData.emoji);
+            return;
+        }
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = input;
+        const before = text.substring(0, start);
+        const after = text.substring(end);
+
+        const newText = before + emojiData.emoji + after;
+        setInput(newText);
+
+        // Restore focus and update cursor position
+        setTimeout(() => {
+            textarea.focus();
+            const newCursorPos = start + emojiData.emoji.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+        }, 0);
+    };
 
     const handleCopy = (content: string, id: number) => {
         navigator.clipboard.writeText(content);
@@ -2161,8 +2206,8 @@ export default function ChatPage() {
             </div>
 
             {/* Input Area */}
-            <div className="p-3 bg-gray-800 border-t border-gray-700">
-                <div className="flex items-end gap-2 bg-gray-900 rounded-2xl p-2 border border-gray-700 focus-within:border-blue-500 transition-colors">
+            <div className="p-3 bg-gray-800 border-t border-gray-700 relative">
+                <div className="flex items-end gap-2 bg-gray-900 rounded-2xl p-2 border border-gray-700 focus-within:border-blue-500 transition-colors relative">
                     <button
                         onClick={handleImpersonate}
                         disabled={isLoading}
@@ -2178,6 +2223,7 @@ export default function ChatPage() {
                         </div>
                     </button>
                     <textarea
+                        ref={textareaRef}
                         value={input}
                         onChange={(e) => {
                             setInput(e.target.value);
@@ -2192,9 +2238,25 @@ export default function ChatPage() {
                         }}
                         placeholder="Type a message..."
                         className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none max-h-48 py-2 px-2"
-                        rows={3}
                         style={{ minHeight: '88px' }}
                     />
+                    <div className="mb-1 relative">
+                        <button
+                            ref={emojiButtonRef}
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className="p-2 text-gray-400 hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-800"
+                            title="Add Emoji"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm7.5 0c0 .414-.168.75-.375.75S16.5 10.164 16.5 9.75 16.668 9 16.875 9s.375.336.375.75z" />
+                            </svg>
+                        </button>
+                        {showEmojiPicker && (
+                            <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', right: '0', marginBottom: '8px', zIndex: 50 }}>
+                                <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
+                            </div>
+                        )}
+                    </div>
                     <button
                         onClick={sendMessage}
                         disabled={isLoading || !input.trim()}
