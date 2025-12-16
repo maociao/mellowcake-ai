@@ -21,23 +21,12 @@ export const memoryService = {
     },
 
     async searchMemories(characterId: number, query: string, limit: number = 10) {
-        // Fetch all memories for the character first
-        // Optimization: In a real app with thousands of memories, we would want to do this filtering in SQL.
-        // For now, fetching all is acceptable as per previous implementation patterns.
+        // Fetch all memories for the character
         const allMemories = await this.getMemories(characterId);
 
-        // 1. Identification: Split into Recent vs Old
-        // Sort by CreatedAt Descending (Newest first)
-        const sortedByRecency = [...allMemories].sort((a, b) =>
-            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-        );
+        if (allMemories.length === 0) return [];
 
-        // Always take top 5 recent memories
-        const RECENT_COUNT = 5;
-        const recentMemories = sortedByRecency.slice(0, RECENT_COUNT);
-        const olderMemories = sortedByRecency.slice(RECENT_COUNT);
-
-        // 2. Scoring: Calculate relevance for ALL memories (to help with final sorting)
+        // 1. Scoring: Calculate relevance for ALL memories
         const terms = query.split(' ').filter(t => t.length > 3);
 
         const scoreMemory = (mem: typeof allMemories[0]) => {
@@ -50,41 +39,20 @@ export const memoryService = {
             return score;
         };
 
-        // Score the older memories to find the best remaining ones
-        const scoredOlder = olderMemories.map(mem => ({
+        const scoredMemories = allMemories.map(mem => ({
             ...mem,
             score: scoreMemory(mem)
-        }));
+        })).filter(mem => mem.score > 0); // STRICT FILTER: match required
 
-        // Filter valid matches from older memories (must have score > 0)
-        const relevantOlder = scoredOlder
-            .filter(m => m.score > 0)
-            .sort((a, b) => b.score - a.score);
-
-        // 3. Combination
-        // We have recentMemories (must include) and relevantOlder (candidates)
-        // We need to fill up to 'limit'
-
-        // Convert recent to scored format for consistency
-        const scoredRecent = recentMemories.map(mem => ({
-            ...mem,
-            score: scoreMemory(mem)
-        }));
-
-        const finalSelection = [...scoredRecent];
-
-        // Fill remaining slots
-        const slotsRemaining = limit - finalSelection.length;
-        if (slotsRemaining > 0) {
-            finalSelection.push(...relevantOlder.slice(0, slotsRemaining));
-        }
-
-        // 4. Final Sort for specific ordering if needed by caller, 
-        // though typically caller re-sorts. We'll return them roughly sorted by score then date.
-        return finalSelection.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        // 2. Sort & Limit
+        // Sort by Score (Desc) -> Recency (Desc)
+        scoredMemories.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score; // Higher score first
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); // Newer first
         });
+
+        // Take top N
+        return scoredMemories.slice(0, limit);
     },
 
     async generateMemoryFromChat(
