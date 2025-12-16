@@ -61,10 +61,20 @@ export const contextManager = {
         };
 
         // Format history
-        const formattedHistory = history.map(msg => ({
-            role: msg.role as 'user' | 'assistant' | 'system',
-            content: replaceVariables(msg.content)
-        }));
+        const formattedHistory = history.map(msg => {
+            // CLEAN CONTENT: Remove image tags and markdown links
+            let cleanContent = replaceVariables(msg.content)
+                .replace(/\[GENERATE_IMAGE:.*?\]/g, '')
+                .replace(/!\[.*?\]\(.*?\)/g, '')
+                .trim();
+
+            if (!cleanContent) cleanContent = "...";
+
+            return {
+                role: msg.role as 'user' | 'assistant' | 'system',
+                content: cleanContent
+            };
+        });
 
         if (formattedHistory.length === 0 && character.firstMessage) {
             formattedHistory.push({
@@ -183,7 +193,14 @@ export const contextManager = {
             // Real Character messages -> 'user' role in prompt (things the "User" said to "You")
 
             const role = msg.role === 'user' ? 'assistant' : 'user';
-            let content = replaceVariables(msg.content);
+
+            // CLEAN CONTENT: Remove image tags and markdown links to prevent hallucinations
+            let content = replaceVariables(msg.content)
+                .replace(/\[GENERATE_IMAGE:.*?\]/g, '') // Remove generation tags
+                .replace(/!\[.*?\]\(.*?\)/g, '')         // Remove markdown images
+                .trim();
+
+            if (!content) content = "..."; // Fallback if message was only an image
 
             if (msg.role === 'assistant') {
                 // Character speaking (mapped to 'user' role)
@@ -227,9 +244,9 @@ export const contextManager = {
         systemPromptParts.push(`[Main]`);
         // Response Style Selection
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. You are exchanging messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}. You are separated from ${userName} and are exchanging messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.\n\nNSFW: NSFW/Smut is allowed.`);
         } else {
-            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\nNSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.\n\nNSFW: NSFW/Smut is allowed.`);
         }
 
         // Character Description
@@ -302,7 +319,7 @@ export const contextManager = {
                 return `[${timeAgo}]: ${entry.content}`;
             });
 
-            systemPromptParts.push(`[World Info]${formattedEntries.join('\n')}`);
+            systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
         }
 
         // Memories Injection
@@ -331,13 +348,13 @@ export const contextManager = {
 
                 return `[${timeAgo}] ${replaceVariables(m.content)}`;
             }).join('\n');
-            systemPromptParts.push(`[Memories]${memoryText}`);
+            systemPromptParts.push(`[Memories]\n${memoryText}`);
         }
 
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. \n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.NSFW: NSFW/Smut is allowed.`);
         } else {
-            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. NSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. \n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.NSFW: NSFW/Smut is allowed.`);
         }
         systemPromptParts.push(`[Begin Roleplay]`);
         const systemContent = systemPromptParts.join('\n');
@@ -358,7 +375,14 @@ export const contextManager = {
 
         for (const msg of history) {
             const role = msg.role === 'user' ? 'user' : 'assistant';
-            let content = replaceVariables(msg.content);
+
+            // CLEAN CONTENT: Remove image tags and markdown links to prevent hallucinations
+            let content = replaceVariables(msg.content)
+                .replace(/\[GENERATE_IMAGE:.*?\]/g, '') // Remove generation tags
+                .replace(/!\[.*?\]\(.*?\)/g, '')         // Remove markdown images
+                .trim();
+
+            if (!content) content = "..."; // Fallback if message was only an image
 
             // Add name prefix for User messages to support multi-persona
             if (role === 'user') {

@@ -19,7 +19,13 @@ export async function GET(
         const filePath = path.join(process.cwd(), 'public', 'characters', filename);
 
         if (!fs.existsSync(filePath)) {
-            // Check temp folder
+            // Check imagen-cache folder
+            const cachePath = path.join(process.cwd(), 'public', 'imagen-cache', filename);
+            if (fs.existsSync(cachePath)) {
+                return serveFile(cachePath, filename);
+            }
+
+            // Check temp folder (fallback)
             const tempPath = path.join(process.cwd(), 'public', 'temp', filename);
             if (fs.existsSync(tempPath)) {
                 return serveFile(tempPath, filename);

@@ -66,6 +66,7 @@ tts_service/outputs
 voices/*
 public/voices/*
 public/audio-cache/*
+public/imagen-cache/*
 public/videos/*
 public/characters/*
 public/personas/*

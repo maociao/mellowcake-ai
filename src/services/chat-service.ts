@@ -82,6 +82,33 @@ export const chatService = {
             .returning();
     },
 
+    async updateMessageContent(messageId: number, newContent: string) {
+        const msg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
+        if (!msg) return null;
+
+        const swipes = msg.swipes ? JSON.parse(msg.swipes) : [msg.content];
+        const currentIndex = msg.currentIndex || 0;
+
+        // Update the specific swipe if index is valid
+        if (currentIndex >= 0 && currentIndex < swipes.length) {
+            swipes[currentIndex] = newContent;
+        } else {
+            // Fallback: If index is weird, just push or reset? 
+            // Better to assume if we are updating content, we update the active one.
+            // If empty, init it.
+            if (swipes.length === 0) swipes.push(newContent);
+            else swipes[0] = newContent;
+        }
+
+        return await db.update(chatMessages)
+            .set({
+                content: newContent,
+                swipes: JSON.stringify(swipes),
+            })
+            .where(eq(chatMessages.id, messageId))
+            .returning();
+    },
+
     async navigateSwipe(messageId: number, direction: 'left' | 'right') {
         const msg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
         if (!msg) return null;
@@ -206,7 +233,18 @@ export const chatService = {
     async summarizeHistory(sessionId: number, messagesToSummarize: { role: string, content: string, name?: string | null }[]) {
         if (messagesToSummarize.length === 0) return null;
 
-        const text = messagesToSummarize.map(m => `${m.name || m.role}: ${m.content} `).join('\n');
+        const text = messagesToSummarize.map(m => {
+            // Clean content: Remove [GENERATE_IMAGE:...] and ![...](...)
+            const cleanedContent = m.content
+                .replace(/\[GENERATE_IMAGE:.*?\]/g, '')
+                .replace(/!\[.*?\]\(.*?\)/g, '')
+                .trim();
+            if (!cleanedContent) return null; // Skip if empty after cleaning (e.g. was just an image)
+            return `${m.name || m.role}: ${cleanedContent} `;
+        }).filter(Boolean).join('\n');
+
+        if (!text) return null;
+
         const prompt = `Summarize the following chat history into a concise narrative paragraph(3 - 5 sentences) that captures the key events and information. Maintain the style and tone of the story.
         
 Chat History:

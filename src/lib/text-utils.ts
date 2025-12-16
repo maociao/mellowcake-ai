@@ -11,15 +11,38 @@ export function trimResponse(text: string, maxLength: number = 800): string {
         return text;
     }
 
-    // 1. Initial slice to max length
-    let trimmed = text.substring(0, maxLength);
+    let cutOffIndex = maxLength;
 
-    // 2. Check for balanced asterisks
-    // Count asterisks in the trimmed portion
+    // 1. Check for Image/Generation Tags that might be cut off
+    // We look for the start of a tag near the cutoff point
+    const tags = ['[GENERATE_IMAGE:', '!['];
+
+    for (const tagStart of tags) {
+        // Find the last occurrence of the tag start *before or at* the current cutoff
+        const lastIndex = text.lastIndexOf(tagStart, cutOffIndex);
+
+        if (lastIndex !== -1) {
+            // Determine expected closing char
+            const closeChar = tagStart === '[GENERATE_IMAGE:' ? ']' : ')';
+
+            // Find where it closes (searching forward from the start)
+            const closeIndex = text.indexOf(closeChar, lastIndex);
+
+            // If it closes AFTER the cutoff, ensuring the tag is complete is prioritized
+            // We extend the cutoff to include the closing character
+            if (closeIndex !== -1 && closeIndex >= cutOffIndex) {
+                // Check if extending is reasonable (e.g. don't extend by 1000 chars, but a prompt shouldn't be that massive)
+                // Let's blindly trust it for now as per user request to "exceed the character length"
+                cutOffIndex = closeIndex + 1;
+            }
+        }
+    }
+
+    // 2. Initial slice
+    let trimmed = text.substring(0, cutOffIndex);
+
+    // 3. Check for balanced asterisks
     const asteriskCount = (trimmed.match(/\*/g) || []).length;
-
-    // If odd number of asterisks, we are likely inside an action *...
-    // We should trim back to the last asterisk to remove the incomplete action start
     if (asteriskCount % 2 !== 0) {
         const lastAsteriskIndex = trimmed.lastIndexOf('*');
         if (lastAsteriskIndex !== -1) {
@@ -27,34 +50,22 @@ export function trimResponse(text: string, maxLength: number = 800): string {
         }
     }
 
-    // 3. Check for sentence termination
-    // We want the text to end with a sentence terminator: . ! ? "
-    // Or a closed action ending with * (which we might have just handled or preserved)
-
-    // Regex for sentence endings or closed action
-    // We look for the last occurrence of a sentence terminator or a closing asterisk
-    // Note: If the text ends with *, it's a valid ending (assuming balanced, which we checked above)
-
-    // Let's find the last valid ending punctuation
-    // Valid endings: . ! ? " *
+    // 4. Check for sentence termination
+    // Valid endings now include ] and ) to support tags being the end of the thought
     const lastPunctuationIndex = Math.max(
         trimmed.lastIndexOf('.'),
         trimmed.lastIndexOf('!'),
         trimmed.lastIndexOf('?'),
         trimmed.lastIndexOf('"'),
-        trimmed.lastIndexOf('*')
+        trimmed.lastIndexOf('*'),
+        trimmed.lastIndexOf(']'),
+        trimmed.lastIndexOf(')')
     );
 
     if (lastPunctuationIndex !== -1) {
-        // Keep up to and including the punctuation
         trimmed = trimmed.substring(0, lastPunctuationIndex + 1);
     } else {
-        // Fallback: If no punctuation found
-        // If we trimmed an asterisk (meaning we had an action), we might be left with text that doesn't end in punctuation.
-        // e.g. "Action start *looks..." -> "Action start "
-        // We should probably just return this, maybe trimming trailing whitespace.
-
-        // If we didn't trim an asterisk (e.g. "I am runn..."), we should trim to last space to avoid cut words.
+        // Fallback
         const lastSpace = trimmed.lastIndexOf(' ');
         if (lastSpace !== -1) {
             trimmed = trimmed.substring(0, lastSpace);

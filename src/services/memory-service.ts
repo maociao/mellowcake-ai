@@ -21,45 +21,70 @@ export const memoryService = {
     },
 
     async searchMemories(characterId: number, query: string, limit: number = 10) {
-        // Simple keyword search for now
-        // In a real app, we'd use vector search or FTS
-        // We'll split query into words and look for matches in content or keywords
-
-        const terms = query.split(' ').filter(t => t.length > 3); // Filter short words
-        if (terms.length === 0) return [];
-
-        // Construct OR clauses for each term
-        const conditions = terms.map(term =>
-            or(
-                like(memories.content, `%${term}%`),
-                like(memories.keywords, `%${term}%`)
-            )
-        );
-
-        // Combine with characterId check
-        // Drizzle ORM composition might be tricky with dynamic array of conditions
-        // Let's just do a simple content search for the whole query string for MVP
-        // or fetch all and filter in JS (inefficient but works for small datasets)
-
+        // Fetch all memories for the character first
+        // Optimization: In a real app with thousands of memories, we would want to do this filtering in SQL.
+        // For now, fetching all is acceptable as per previous implementation patterns.
         const allMemories = await this.getMemories(characterId);
 
-        // Simple scoring
-        const scored = allMemories.map(mem => {
+        // 1. Identification: Split into Recent vs Old
+        // Sort by CreatedAt Descending (Newest first)
+        const sortedByRecency = [...allMemories].sort((a, b) =>
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+
+        // Always take top 5 recent memories
+        const RECENT_COUNT = 5;
+        const recentMemories = sortedByRecency.slice(0, RECENT_COUNT);
+        const olderMemories = sortedByRecency.slice(RECENT_COUNT);
+
+        // 2. Scoring: Calculate relevance for ALL memories (to help with final sorting)
+        const terms = query.split(' ').filter(t => t.length > 3);
+
+        const scoreMemory = (mem: typeof allMemories[0]) => {
+            if (terms.length === 0) return 0;
             let score = 0;
             const text = (mem.content + ' ' + (mem.keywords || '')).toLowerCase();
             terms.forEach(term => {
                 if (text.includes(term.toLowerCase())) score++;
             });
-            return { ...mem, score };
-        });
+            return score;
+        };
 
-        return scored
+        // Score the older memories to find the best remaining ones
+        const scoredOlder = olderMemories.map(mem => ({
+            ...mem,
+            score: scoreMemory(mem)
+        }));
+
+        // Filter valid matches from older memories (must have score > 0)
+        const relevantOlder = scoredOlder
             .filter(m => m.score > 0)
-            .sort((a, b) => {
-                if (b.score !== a.score) return b.score - a.score; // Higher score first
-                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); // Newer first
-            })
-            .slice(0, limit);
+            .sort((a, b) => b.score - a.score);
+
+        // 3. Combination
+        // We have recentMemories (must include) and relevantOlder (candidates)
+        // We need to fill up to 'limit'
+
+        // Convert recent to scored format for consistency
+        const scoredRecent = recentMemories.map(mem => ({
+            ...mem,
+            score: scoreMemory(mem)
+        }));
+
+        const finalSelection = [...scoredRecent];
+
+        // Fill remaining slots
+        const slotsRemaining = limit - finalSelection.length;
+        if (slotsRemaining > 0) {
+            finalSelection.push(...relevantOlder.slice(0, slotsRemaining));
+        }
+
+        // 4. Final Sort for specific ordering if needed by caller, 
+        // though typically caller re-sorts. We'll return them roughly sorted by score then date.
+        return finalSelection.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
     },
 
     async generateMemoryFromChat(
@@ -75,8 +100,17 @@ export const memoryService = {
         const text = recentMessages.map(m => {
             // Use the stored name in the message if available, otherwise fallback to current persona/character name
             const roleName = m.name ? m.name : (m.role === 'user' ? personaName : characterName);
-            return `${roleName}: ${m.content}`;
-        }).join('\n');
+
+            // Clean content: Remove [GENERATE_IMAGE:...] and ![...](...)
+            const cleanedContent = m.content
+                .replace(/\[GENERATE_IMAGE:.*?\]/g, '')
+                .replace(/!\[.*?\]\(.*?\)/g, '')
+                .trim();
+
+            if (!cleanedContent) return null;
+
+            return `${roleName}: ${cleanedContent}`;
+        }).filter(Boolean).join('\n');
 
         const existingContext = [
             ...existingMemories.map(m => `- ${m.content}`),
@@ -85,18 +119,24 @@ export const memoryService = {
 
         const prompt = `Analyze the following RECENT dialogue and extract a NEW concise memory or fact about ${personaName} or the interaction that is NOT already known.
 
-Existing Knowledge (Do NOT repeat these):
+[FORBIDDEN - EXISTING KNOWLEDGE]
+(These specific facts are ALREADY KNOWN. Harmonize with them, but NEVER extract them as new memories.)
 ${existingContext || "None"}
 
-Recent Dialogue:
+[TARGET FOR EXTRACTION - RECENT DIALOGUE]
+(Only extract facts explicitly stated here.)
 ${text}
 
-Rules:
-1. Only extract NEW FACTS explicitly stated in the Recent Dialogue.
-2. Do NOT repeat facts from Existing Knowledge.
-3. Do NOT infer feelings or thoughts unless explicitly stated.
-4. If nothing NEW and IMPORTANT happened, return "NONE".
-5. Keep the memory concise (1 sentence).
+[INSTRUCTIONS]
+1. EXTRACT: specific preferences, events, or facts stated in [TARGET FOR EXTRACTION].
+2. VERIFY: Check [FORBIDDEN - EXISTING KNOWLEDGE]. If a fact is listed there, IGNORE IT.
+3. OUTPUT: concise, single-sentence memory.
+4. If nothing NEW is found, return "NONE".
+
+[NEGATIVE CONSTRAINTS]
+- DO NOT rephrase existing knowledge as a new memory.
+- DO NOT infer feelings or states (e.g. "User is happy") unless explicitly stated.
+- DO NOT include timestamps or "Recently...".
 
 Memory:`;
 

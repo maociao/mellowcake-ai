@@ -929,26 +929,7 @@ export default function ChatPage() {
         }
     };
 
-    // Helper to format message content (italics for *text*)
-    const formatMessage = (content: string) => {
-        // Replace variables
-        let formatted = content;
-        if (character) {
-            formatted = formatted.replace(/{{char}}/gi, character.name);
-        }
 
-        const currentPersona = personas.find(p => p.id === selectedPersonaId);
-        const userName = currentPersona?.name || 'User';
-        formatted = formatted.replace(/{{user}}/gi, userName);
-
-        const parts = formatted.split(/(\*[^*]+\*)/g);
-        return parts.map((part, index) => {
-            if (part.startsWith('*') && part.endsWith('*')) {
-                return <em key={index} className="text-blue-200">{part.slice(1, -1)}</em>;
-            }
-            return <span key={index}>{part}</span>;
-        });
-    };
 
     // Scroll to bottom only when new messages are added
     const prevMessagesLength = useRef(messages.length);
@@ -1203,6 +1184,208 @@ export default function ChatPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // --- Image Generation Logic ---
+    const processingImages = useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        messages.forEach(msg => {
+            if (msg.role === 'assistant' && msg.id && !processingImages.current.has(msg.id)) {
+                // Check for [GENERATE_IMAGE: ...] tag
+                const match = msg.content.match(/\[GENERATE_IMAGE:\s*(.+?)\]/);
+                if (match) {
+                    const description = match[1];
+                    // Trigger generation
+                    processingImages.current.add(msg.id);
+                    generateImageForMessage(msg.id, description, match[0]);
+                }
+            }
+        });
+    }, [messages]);
+
+    const generateImageForMessage = async (messageId: number, description: string, tag: string) => {
+        try {
+            console.log(`Triggering auto-image generation for message ${messageId}: ${description}`);
+
+            // Enhance prompt if character name is present
+            let finalPrompt = description;
+            if (character && description.toLowerCase().includes(character.name.toLowerCase())) {
+                const enhancements = [];
+                // Add description first as it often contains the most visual info
+                if (character.description) enhancements.push(character.description);
+                if (character.appearance) enhancements.push(character.appearance);
+                if (character.personality) enhancements.push(character.personality);
+
+                if (enhancements.length > 0) {
+                    finalPrompt = `${description}, ${enhancements.join(', ')}`;
+                    console.log(`Enhanced prompt with character details: ${finalPrompt}`);
+                }
+            }
+
+            // 1. Call Generate API
+            const res = await fetch('/api/images/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: finalPrompt })
+            });
+
+            if (!res.ok) throw new Error('Failed to request generation');
+
+            const { promptId } = await res.json();
+
+            // 2. Poll for completion
+            const poll = setInterval(async () => {
+                try {
+                    const statusRes = await fetch(`/api/images/status?promptId=${promptId}`);
+                    const statusData = await statusRes.json();
+
+                    if (statusData.status === 'completed' && statusData.imagePath) {
+                        clearInterval(poll);
+
+                        // 3. Update Message Content
+                        // Replace tag with markdown image syntax
+                        // We need the latest state of the message to safely replace
+                        const updateRes = await fetch(`/api/messages/${messageId}`, {
+                            method: 'GET' // Or assume we have content. Better to fetch fresh or use state if consistent.
+                        });
+                        // Actually, let's just use a direct patch with replacement on the current message content we have in memory?
+                        // No, concurrency. Best to fetch latest, replace, then patch.
+                        // Ideally backend handles this, but we are doing client-side orchestration.
+
+                        // Simple approach: Use the state's content for this ID
+                        setMessages(prev => {
+                            const msg = prev.find(m => m.id === messageId);
+                            if (!msg) return prev;
+
+                            const newContent = msg.content.replace(tag, `![${description}](${statusData.imagePath})`);
+
+                            // Async update DB
+                            fetch(`/api/messages/${messageId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ content: newContent })
+                            }).catch(e => console.error('Failed to save image to message', e));
+
+                            return prev.map(m => m.id === messageId ? { ...m, content: newContent } : m);
+                        });
+
+                        processingImages.current.delete(messageId);
+
+                    } else if (statusData.status === 'failed') {
+                        clearInterval(poll);
+                        console.error('Image generation failed');
+                        processingImages.current.delete(messageId);
+                    }
+                } catch (e) {
+                    console.error('Polling error', e);
+                    clearInterval(poll);
+                    processingImages.current.delete(messageId);
+                }
+            }, 3000);
+
+        } catch (e) {
+            console.error('Image generation error', e);
+            processingImages.current.delete(messageId);
+        }
+    };
+
+    // Helper to format message content (italics for *text*, images, and generation tags)
+    const formatMessage = (content: string) => {
+        // Replace variables
+        let formatted = content;
+        if (character) {
+            formatted = formatted.replace(/{{char}}/gi, character.name);
+        }
+
+        const currentPersona = personas.find(p => p.id === selectedPersonaId);
+        const userName = currentPersona?.name || 'User';
+        formatted = formatted.replace(/{{user}}/gi, userName);
+
+        // Split by Markdown Image: ![alt](url)
+        // AND [GENERATE_IMAGE: ...] tag
+        // AND Italics *...*
+
+        // We use a combined regex to tokenise
+        // Groups: 
+        // 1. Image: !\[(.*?)\]\((.*?)\)
+        // 2. Gen Tag: \[GENERATE_IMAGE:\s*(.+?)\]
+        // 3. Italics: \*([^*]+)\*
+        const regex = /(!\[.*?\]\(.*?\))|(\[GENERATE_IMAGE:\s*.+?\])|(\*[^*]+\*)/g;
+
+        const parts = formatted.split(regex).filter(p => p !== undefined && p !== '');
+
+        // Using split with capturing groups includes the captures in the array. 
+        // However, with multiple groups, it might be messy. 
+        // Let's use a simpler sequential find-and-replace approach using React nodes array.
+
+        let nodes: React.ReactNode[] = [formatted];
+
+        // 1. Handle Images
+        const processImages = (nodeList: React.ReactNode[]) => {
+            return nodeList.flatMap(node => {
+                if (typeof node !== 'string') return node;
+                const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
+                const parts = node.split(imgRegex);
+                if (parts.length === 1) return node;
+
+                const result = [];
+                for (let i = 0; i < parts.length; i += 3) {
+                    result.push(parts[i]);
+                    if (i + 1 < parts.length) {
+                        const alt = parts[i + 1];
+                        const src = parts[i + 2];
+                        result.push(
+                            <div key={`img-${i}`} className="my-2 rounded overflow-hidden">
+                                <img src={src} alt={alt} className="max-w-full h-auto rounded shadow-lg" />
+                            </div>
+                        );
+                    }
+                }
+                return result;
+            });
+        };
+
+        // 2. Handle Generation Tag
+        const processGenTags = (nodeList: React.ReactNode[]) => {
+            return nodeList.flatMap(node => {
+                if (typeof node !== 'string') return node;
+                const tagRegex = /(\[GENERATE_IMAGE:\s*.+?\])/g;
+                const parts = node.split(tagRegex);
+                return parts.map((part, i) => {
+                    if (part.match(/^\[GENERATE_IMAGE:/)) {
+                        return (
+                            <div key={`gen-${i}`} className="my-2 p-3 bg-gray-800 rounded border border-purple-500/30 flex items-center space-x-3 isolate">
+                                <div className="animate-spin h-4 w-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                                <span className="text-sm text-purple-300 animate-pulse">Painting a new picture...</span>
+                            </div>
+                        );
+                    }
+                    return part;
+                });
+            });
+        };
+
+        // 3. Handle Italics
+        const processItalics = (nodeList: React.ReactNode[]) => {
+            return nodeList.flatMap(node => {
+                if (typeof node !== 'string') return node;
+                const parts = node.split(/(\*[^*]+\*)/g);
+                return parts.map((part, index) => {
+                    if (part.startsWith('*') && part.endsWith('*')) {
+                        return <em key={`em-${index}`} className="text-blue-200">{part.slice(1, -1)}</em>;
+                    }
+                    return part;
+                });
+            });
+        };
+
+        // Pipeline
+        nodes = processImages(nodes);
+        nodes = processGenTags(nodes);
+        nodes = processItalics(nodes);
+
+        return nodes;
     };
 
     const currentPersona = personas.find(p => p.id === selectedPersonaId);
