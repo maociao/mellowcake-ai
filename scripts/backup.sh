@@ -17,6 +17,15 @@ log() {
 
 log "Starting backup..."
 
+# Cleanup orphaned files
+if [ -f "$SOURCE_DIR/scripts/cleanup_orphans.js" ]; then
+    log "Running cleanup of orphaned files..."
+    node "$SOURCE_DIR/scripts/cleanup_orphans.js" >> "$LOG_FILE" 2>&1
+    log "Cleanup finished."
+else
+    log "WARNING: Cleanup script not found."
+fi
+
 # Create a temporary directory for this backup
 TEMP_DIR="$BACKUP_DIR/temp_$DATE"
 mkdir -p "$TEMP_DIR"
