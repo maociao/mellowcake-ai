@@ -1258,7 +1258,8 @@ export default function ChatPage() {
             if (character && description.toLowerCase().includes(character.name.toLowerCase())) {
                 const enhancements = [];
                 // Add description first as it often contains the most visual info
-                if (character.description) enhancements.push(character.description);
+                // Add description first as it often contains the most visual info
+                // if (character.description) enhancements.push(character.description); // Removed to prevent background story pollution
                 if (character.appearance) enhancements.push(character.appearance);
                 if (character.personality) enhancements.push(character.personality);
 
@@ -2240,32 +2241,34 @@ export default function ChatPage() {
                         className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none max-h-48 py-2 px-2"
                         style={{ minHeight: '88px' }}
                     />
-                    <div className="mb-1 relative">
+                    <div className="flex flex-col gap-1 mb-1">
+                        <div className="relative">
+                            <button
+                                ref={emojiButtonRef}
+                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                className="p-2 text-gray-400 hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-800"
+                                title="Add Emoji"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm7.5 0c0 .414-.168.75-.375.75S16.5 10.164 16.5 9.75 16.668 9 16.875 9s.375.336.375.75z" />
+                                </svg>
+                            </button>
+                            {showEmojiPicker && (
+                                <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', right: '0', marginBottom: '8px', zIndex: 50 }}>
+                                    <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
+                                </div>
+                            )}
+                        </div>
                         <button
-                            ref={emojiButtonRef}
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className="p-2 text-gray-400 hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-800"
-                            title="Add Emoji"
+                            onClick={sendMessage}
+                            disabled={isLoading || !input.trim()}
+                            className="p-2 bg-blue-600 rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 transition-colors"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm7.5 0c0 .414-.168.75-.375.75S16.5 10.164 16.5 9.75 16.668 9 16.875 9s.375.336.375.75z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                             </svg>
                         </button>
-                        {showEmojiPicker && (
-                            <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', right: '0', marginBottom: '8px', zIndex: 50 }}>
-                                <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
-                            </div>
-                        )}
                     </div>
-                    <button
-                        onClick={sendMessage}
-                        disabled={isLoading || !input.trim()}
-                        className="p-2 bg-blue-600 rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 transition-colors mb-1"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                            <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                        </svg>
-                    </button>
                 </div>
             </div>
         </div >
