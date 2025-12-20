@@ -878,6 +878,22 @@ export default function ChatPage() {
         }
     };
 
+    const deletePersona = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this persona?')) return;
+        try {
+            const res = await fetch(`/api/personas/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadData();
+                setShowPersonaEdit(null);
+                if (selectedPersonaId === id) {
+                    setSelectedPersonaId(null);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to delete persona', e);
+        }
+    };
+
     const loadLorebookDetails = async (id: number) => {
         try {
             const res = await fetch(`/api/lorebooks/${id}`);
@@ -1780,9 +1796,20 @@ export default function ChatPage() {
                                         ))}
                                     </select>
                                 </div>
-                                <div className="flex justify-end space-x-2">
-                                    <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+                                <div className="flex justify-between items-center pt-2">
+                                    {typeof showPersonaEdit !== 'string' ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => deletePersona(showPersonaEdit.id)}
+                                            className="text-red-400 hover:text-red-300 px-2 py-2 text-sm"
+                                        >
+                                            Delete Persona
+                                        </button>
+                                    ) : <div></div>}
+                                    <div className="flex space-x-2">
+                                        <button type="button" onClick={() => setShowPersonaEdit(null)} className="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+                                    </div>
                                 </div>
                             </form>
                         </div>

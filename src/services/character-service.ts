@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { characters, chatSessions, chatMessages, memories, characterVideos, personas } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,28 +43,49 @@ function extractPngMetadata(buffer: Buffer): any | null {
 
 export const characterService = {
     async getAll() {
-        // We want to get the default video path for each character
-        // Since we are using drizzle, we can use a left join or a subquery.
-        // But for simplicity with the current setup, let's fetch all and then fetch videos or use a raw query if needed.
-        // Actually, drizzle's query builder is powerful.
-        // Let's use db.query.characters.findMany with with: { videos: ... } if relations were set up.
-        // I didn't set up the relation in the schema for characters -> videos yet, only videos -> characters.
-        // Let's add the relation first or just do a manual join.
-        // Adding relation to schema is cleaner but requires editing schema again.
-        // Let's just do a manual join logic here for now or update schema.
-        // Actually, I can just fetch all characters and all default videos and map them.
-
+        // Fetch all characters
         const allChars = await db.select().from(characters);
+
+        // Fetch default videos
         const defaultVideos = await db.query.characterVideos.findMany({
             where: (videos, { eq }) => eq(videos.isDefault, true),
         });
-
         const videoMap = new Map(defaultVideos.map(v => [v.characterId, v.filePath]));
 
-        return allChars.map(c => ({
+        // Fetch last interaction time from chat sessions
+        const lastInteractions = await db
+            .select({
+                characterId: chatSessions.characterId,
+                lastInteraction: sql<string>`max(${chatSessions.updatedAt})`
+            })
+            .from(chatSessions)
+            .groupBy(chatSessions.characterId);
+
+        const interactionMap = new Map(lastInteractions.map(i => [i.characterId, i.lastInteraction]));
+
+        // Merge and Sort
+        const charactersWithMeta = allChars.map(c => ({
             ...c,
             defaultVideoPath: videoMap.get(c.id) || null,
+            lastInteraction: interactionMap.get(c.id) || null
         }));
+
+        return charactersWithMeta.sort((a, b) => {
+            // 1. Sort by Last Interaction (Desc)
+            if (a.lastInteraction && b.lastInteraction) {
+                return b.lastInteraction.localeCompare(a.lastInteraction);
+            }
+            if (a.lastInteraction) return -1;
+            if (b.lastInteraction) return 1;
+
+            // 2. Fallback to UpdatedAt (Desc) - for newly created/edited characters
+            if (a.updatedAt && b.updatedAt) {
+                return b.updatedAt.localeCompare(a.updatedAt);
+            }
+
+            // 3. Fallback to ID (Desc) - newest first
+            return b.id - a.id;
+        });
     },
 
     async getById(id: number) {
