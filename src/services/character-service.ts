@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
-import { characters, chatSessions, chatMessages, memories, characterVideos, personas } from '@/lib/db/schema';
+import { characters, chatSessions, chatMessages, memories, characterVideos, personas, lorebooks } from '@/lib/db/schema';
+import { lorebookService } from './lorebook-service';
 import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
@@ -122,7 +123,7 @@ export const characterService = {
         return (await db.update(characters).set(updateData).where(eq(characters.id, id)).returning())[0];
     },
 
-    async delete(id: number) {
+    async delete(id: number, deleteLinkedLorebooks: boolean = false) {
         // 1. Get file paths to delete
         const char = await this.getById(id);
         const videos = await db.query.characterVideos.findMany({
@@ -130,18 +131,24 @@ export const characterService = {
         });
 
         // 2. Cascade Delete in DB
-        // Messages are set to cascade delete on session delete in schema?
-        // Let's verify schema.
-        // chatMessages.sessionId -> chatSessions.id (onDelete: 'cascade') -> YES
-        // But chatSessions -> characters is NOT cascade in schema usually unless specified.
-        // Let's check schema.ts again or just delete manually to be safe.
-        // memories -> characterId
-        // characterVideos -> characterId (onDelete: 'cascade') -> YES
 
-        // Note: SQLite foreign keys need to be enabled for ON DELETE CASCADE to work.
-        // Drizzle/better-sqlite3 usually enables them if configured?
-        // To be safe, let's delete sessions manually or ensure cascade works.
-        // If we delete character, and sessions reference it...
+        // Handle Lorebook Deletion if requested
+        if (deleteLinkedLorebooks && char?.lorebooks) {
+            try {
+                const lorenames = JSON.parse(char.lorebooks) as string[];
+                if (Array.isArray(lorenames) && lorenames.length > 0) {
+                    const booksToDelete = await db.query.lorebooks.findMany({
+                        where: (lorebooks, { inArray }) => inArray(lorebooks.name, lorenames)
+                    });
+
+                    for (const book of booksToDelete) {
+                        await lorebookService.delete(book.id);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to parse or delete linked lorebooks', e);
+            }
+        }
 
         // Let's manually delete to be sure about cleanup
         // Actually, let's just delete related tables first.

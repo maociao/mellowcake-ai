@@ -71,7 +71,10 @@ export async function DELETE(
         const id = parseInt((await params).id);
         if (isNaN(id)) return new NextResponse('Invalid ID', { status: 400 });
 
-        await characterService.delete(id);
+        const { searchParams } = new URL(request.url);
+        const deleteLorebook = searchParams.get('deleteLorebook') === 'true';
+
+        await characterService.delete(id, deleteLorebook);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
         console.error('Error deleting character:', error);

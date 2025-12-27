@@ -114,6 +114,10 @@ export default function ChatPage() {
     const [editingLorebook, setEditingLorebook] = useState<Lorebook | 'new' | null>(null);
     const [editingEntry, setEditingEntry] = useState<LorebookEntry | 'new' | null>(null);
 
+    // Character Delete State
+    const [showDeleteCharConfirm, setShowDeleteCharConfirm] = useState(false);
+    const [deleteCharWithLorebook, setDeleteCharWithLorebook] = useState(false);
+
     // Prompt Inspection State
     const [viewingPrompt, setViewingPrompt] = useState<string | null>(null);
     const [charEditTab, setCharEditTab] = useState<'details' | 'memories' | 'videos' | 'voice'>('details');
@@ -124,11 +128,28 @@ export default function ChatPage() {
     // Audio State
     const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
     const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
+    const [audioGeneratingId, setAudioGeneratingId] = useState<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const emojiButtonRef = useRef<HTMLButtonElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const deleteLorebook = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this lorebook? All entries will also be deleted.')) return;
+        try {
+            const res = await fetch(`/api/lorebooks/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                // If currently editing this one, clear it
+                if (editingLorebook && typeof editingLorebook !== 'string' && editingLorebook.id === id) {
+                    setEditingLorebook(null);
+                }
+                loadData();
+            }
+        } catch (e) {
+            console.error('Failed to delete lorebook', e);
+        }
+    };
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -824,12 +845,16 @@ export default function ChatPage() {
         }
     };
 
-    const deleteCharacter = async () => {
+    const requestDeleteCharacter = () => {
+        setShowDeleteCharConfirm(true);
+        setDeleteCharWithLorebook(false);
+    };
+
+    const confirmDeleteCharacter = async () => {
         if (!character) return;
-        if (!confirm('Are you sure you want to delete this character? This will permanently delete the character, all chat sessions, voices, images, and videos. This action cannot be undone.')) return;
 
         try {
-            const res = await fetch(`/api/characters/${character.id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/characters/${character.id}?deleteLorebook=${deleteCharWithLorebook}`, { method: 'DELETE' });
             if (res.ok) {
                 router.push('/');
             } else {
@@ -1149,6 +1174,7 @@ export default function ChatPage() {
 
     const playTTS = async (text: string, messageId?: number, swipeIndex: number = 0, regenerate: boolean = false) => {
         if (!character) return;
+        if (messageId && audioGeneratingId === messageId) return; // Prevent double trigger
 
         // Toggle Play/Pause if clicking same message and not regenerating
         if (messageId && messageId === playingMessageId && currentAudio && !regenerate) {
@@ -1167,6 +1193,8 @@ export default function ChatPage() {
             setIsPlaying(false);
             setPlayingMessageId(null);
         }
+
+        if (messageId) setAudioGeneratingId(messageId);
 
         try {
             const res = await fetch('/api/tts', {
@@ -1213,6 +1241,8 @@ export default function ChatPage() {
             }
         } catch (e) {
             console.error(e);
+        } finally {
+            if (messageId) setAudioGeneratingId(null);
         }
     };
 
@@ -1542,9 +1572,8 @@ export default function ChatPage() {
             )}
 
             {/* Character Edit Modal */}
-            {/* Character Edit Modal */}
             {showCharEdit && (
-                <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                     <div className="bg-gray-800 rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Edit Character</h2>
@@ -1625,7 +1654,7 @@ export default function ChatPage() {
                                 <div className="flex justify-between pt-4 items-center">
                                     <button
                                         type="button"
-                                        onClick={deleteCharacter}
+                                        onClick={requestDeleteCharacter}
                                         className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded"
                                     >
                                         Delete Character
@@ -1649,6 +1678,8 @@ export default function ChatPage() {
                     </div>
                 </div>
             )}
+
+            {/* Delete Character Confirmation Modal */}
 
             {/* Settings Modal */}
             {
@@ -1837,7 +1868,10 @@ export default function ChatPage() {
                                                     <div className="font-bold">{lb.name}</div>
                                                     <div className="text-xs text-gray-400 truncate max-w-xs">{lb.description}</div>
                                                 </div>
-                                                <button onClick={() => loadLorebookDetails(lb.id!)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                                                <div className="flex space-x-2">
+                                                    <button onClick={() => loadLorebookDetails(lb.id!)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                                                    <button onClick={() => deleteLorebook(lb.id!)} className="text-red-400 hover:text-red-300">Delete</button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -2075,9 +2109,9 @@ export default function ChatPage() {
                             )}
 
                             <div
-                                className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white rounded-br-none'
-                                    : 'bg-gray-700 text-gray-100 rounded-bl-none'
+                                className={`max-w-[80%] rounded-2xl relative group ${msg.role === 'user'
+                                    ? 'bg-blue-600 text-white rounded-br-none px-3 pb-3 pt-10'
+                                    : 'bg-gray-700 text-gray-100 rounded-bl-none px-3 pb-3 pt-10'
                                     }`}
                             >
                                 <div className="whitespace-pre-wrap">
@@ -2147,8 +2181,11 @@ export default function ChatPage() {
                                                             onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0, false)}
                                                             className="text-gray-400 hover:text-blue-400 p-1"
                                                             title={hasAudio ? (isPlaying && playingMessageId === msg.id ? "Pause" : "Play") : "Generate Audio"}
+                                                            disabled={audioGeneratingId === msg.id}
                                                         >
-                                                            {hasAudio ? (
+                                                            {audioGeneratingId === msg.id ? (
+                                                                <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+                                                            ) : hasAudio ? (
                                                                 isPlaying && playingMessageId === msg.id ? (
                                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                                                                         <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0A.75.75 0 0115 4.5h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H15a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
@@ -2169,10 +2206,34 @@ export default function ChatPage() {
                                                                 onClick={() => playTTS(msg.content, msg.id, msg.currentIndex || 0, true)}
                                                                 className="text-gray-400 hover:text-blue-400 p-1"
                                                                 title="Regenerate Audio"
+                                                                disabled={audioGeneratingId === msg.id}
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                                                </svg>
+                                                                {audioGeneratingId === msg.id ? (
+                                                                    // We can also just hide it or show same spinner. Let's show spinner if we want, or just disable it since the main button shows spinner.
+                                                                    // User requested "Also when the regnerate audio button is clicked."
+                                                                    // Let's show spinner here too if it was clicked? But we can only have one spinner state for the message.
+                                                                    // If we use the same state, both buttons will spin if we don't differentiate.
+                                                                    // Actually, usually you replace the button clicked with a spinner.
+                                                                    // If we replace both with spinner it looks weird.
+                                                                    // Let's just disable this one and let the main one spin?
+                                                                    // Or better, let's make this one spin too if meaningful.
+                                                                    // The requirement says: "when user clicks the generate audio button... icon should change... Also when the regnerate audio button is clicked."
+                                                                    // I'll make the main Play button show spinner. And disable this one.
+                                                                    // If user clicked Regenerate, the Play button will turn into a spinner (because hasAudio is true).
+                                                                    // Wait, if hasAudio is true, the first button shows Play/Pause.
+                                                                    // If I click Regenerate, playTTS sets loading.
+                                                                    // The first button condition: audioGeneratingId === msg.id ? SPINNER : hasAudio ? PLAY : GEN
+                                                                    // So the first button becomes a spinner.
+                                                                    // The second button (Regenerate) is still visible. I should probably just disable it or make it spin too?
+                                                                    // Let's disable it to avoid confusion.
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 opacity-50">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                    </svg>
+                                                                )}
                                                             </button>
                                                         )}
                                                     </>
@@ -2298,6 +2359,51 @@ export default function ChatPage() {
                     </div>
                 </div>
             </div>
+            {/* Delete Character Confirmation Modal */}
+            {showDeleteCharConfirm && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" style={{ zIndex: 9999 }}>
+                    <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 relative z-[10000]" style={{ zIndex: 10000 }}>
+                        <h2 className="text-xl font-bold mb-4 text-red-500">Delete Character?</h2>
+                        <p className="text-gray-300 mb-6">
+                            Are you sure you want to delete <span className="font-bold text-white">{character?.name}</span>?
+                            This will permanently delete the character, all chat sessions, voices, images, and videos.
+                            This action cannot be undone.
+                        </p>
+
+                        <div className="mb-6 bg-gray-700 p-3 rounded">
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={deleteCharWithLorebook}
+                                    onChange={e => setDeleteCharWithLorebook(e.target.checked)}
+                                    className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-red-600 focus:ring-red-500"
+                                />
+                                <span className="text-sm">Also delete associated Lorebooks?</span>
+                            </label>
+                            {deleteCharWithLorebook && (
+                                <p className="text-xs text-red-400 mt-2 pl-8">
+                                    Warning: This will delete any Lorebook listed in this character's profile.
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => setShowDeleteCharConfirm(false)}
+                                className="px-4 py-2 text-gray-400 hover:text-white"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDeleteCharacter}
+                                className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded"
+                            >
+                                Confirm Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }
