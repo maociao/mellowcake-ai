@@ -7,25 +7,35 @@ import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
+import { PerformanceLogger } from '@/lib/performance-logger';
 
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
+    let logger: PerformanceLogger | undefined;
+
     try {
         const body = await request.json();
-        const { messageId, options, trimLength, personaId, lorebooks: lorebooksOverride } = body;
+        const { messageId, options, trimLength, personaId, lorebooks: lorebooksOverride, performanceLogging } = body;
 
         if (!messageId) {
             return new NextResponse('Missing messageId', { status: 400 });
         }
+
+        // Initialize Logger
+        logger = new PerformanceLogger('unknown', 'default', performanceLogging);
+        logger.startTimer('total');
+        logger.startTimer('preprocessing');
 
         // 1. Get the target message to find session
         const targetMsg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
         if (!targetMsg) return new NextResponse('Message not found', { status: 404 });
 
         const sessionId = targetMsg.sessionId;
+        // Update logger sessionId
+        logger.logMetric('sessionId' as any, sessionId);
 
         // 2. Get Session & Details
         const session = await chatService.getSessionById(sessionId);
@@ -58,37 +68,48 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Regenerate API] Regenerating message ${messageId}. Context history length: ${history.length}`);
 
+        logger.endTimer('preprocessing');
+        logger.startTimer('memory_search');
+
         // 4. Build Context (Same logic as chat route)
         console.log(`[Regenerate API] Searching memories for character ${character.id} with query: "${content}"`);
-        const memories = await memoryService.searchMemories(character.id, content);
+        // Note: Currently memoryService returns { memories, totalFound }
+        const { memories, totalFound } = await memoryService.searchMemories(character.id, content);
 
+        // Calculate Memory Age Stats
+        if (memories.length > 0) {
+            const validDates = memories.map(m => m.createdAt).filter((d): d is string => d !== null);
+            logger.calculateAgeStats(validDates, 'memory');
+
+            const scores = memories.map(m => m.score);
+            logger.calculateScoreStats(scores, 'memory');
+        }
         // Linked Character Logic
         let linkedCharacter = null;
         if (persona && (persona as any).characterId) {
             if ((persona as any).characterId !== character.id) {
                 console.log(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
                 linkedCharacter = await characterService.getById((persona as any).characterId);
-
-                if (linkedCharacter) {
-                    const linkedMemories = await memoryService.searchMemories(linkedCharacter.id, content);
-                    if (linkedMemories.length > 0) {
-                        console.log(`[Regenerate API] Found ${linkedMemories.length} linked memories`);
-                        memories.push(...linkedMemories);
-                    }
-                }
-            } else {
-                linkedCharacter = character;
-            }
-
-            // Re-sort memories
-            if (memories.length > 0) {
-                memories.sort((a: any, b: any) => {
-                    if (b.score !== a.score) return b.score - a.score;
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                });
-                if (memories.length > 10) memories.length = 10;
             }
         }
+        // Log metrics immediately
+        logger.logMetric('context_memories_total', totalFound);
+
+        const includedCount = memories.length;
+        const droppedCount = totalFound - includedCount;
+
+        logger.logMetric('context_memories_dropped', droppedCount);
+        if (totalFound > 0) {
+            logger.logMetric('context_memories_dropped_pct', (droppedCount / totalFound) * 100);
+        } else {
+            logger.logMetric('context_memories_dropped_pct', 0);
+        }
+
+        // Linked Character Logic REMOVED for regenerate flow as requested.
+        // Persona memories should only be injected in impersonation calls.
+
+        logger.endTimer('memory_search');
+        logger.startTimer('lore_scan');
 
         // Scan Lorebooks
         let lorebookContent: { content: string; createdAt: string }[] = [];
@@ -109,19 +130,40 @@ export async function POST(request: NextRequest) {
             const scannedEntries = await lorebookService.scan(scanText, lorebooks);
 
             lorebookContent = [...alwaysIncluded, ...scannedEntries];
+
+            if (lorebookContent.length > 0) {
+                logger.calculateAgeStats(lorebookContent.map(l => l.createdAt), 'lore');
+            }
+            logger.logMetric('context_lore_total', lorebookContent.length);
         }
+        logger.endTimer('lore_scan');
 
         // Build Prompt
+        logger.startTimer('context_construction');
         const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter, (session as any).responseStyle);
+        logger.endTimer('context_construction');
+
+        // Log Breakdown
+        logger.logMetric('context_usage_system_chars', breakdown.system);
+        logger.logMetric('context_usage_memories_chars', breakdown.memories);
+        logger.logMetric('context_usage_lore_chars', breakdown.lorebook);
+        logger.logMetric('context_usage_history_chars', breakdown.history);
+        logger.logMetric('context_usage_summary_chars', breakdown.summary);
+        logger.logMetric('context_usage_total_chars', breakdown.total);
 
         // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
         const models = await llmService.getModels();
         const selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
+        logger.logMetric('model' as any, selectedModel);
+
         // Get model info for context size
         const modelInfo = await llmService.getModelInfo(selectedModel);
         const contextLimit = 8192; // Default
+
+        logger.logMetric('context_limit_chars', contextLimit * 4);
+        logger.logMetric('context_usage_pct', (rawPrompt.length / (contextLimit * 4)) * 100);
 
         const promptUsed = JSON.stringify({
             prompt: rawPrompt,
@@ -139,11 +181,14 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}, Temp: ${effectiveOptions.temperature}`);
+        logger.startTimer('llm_generation');
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
             ...effectiveOptions
         });
+        logger.endTimer('llm_generation');
 
+        logger.startTimer('postprocessing');
         // Strip character name prefix
         const prefix = `${character.name}:`;
         if (responseContent.trim().startsWith(prefix)) {
@@ -162,6 +207,10 @@ export async function POST(request: NextRequest) {
         if (!updatedMessages) {
             return new NextResponse('Failed to update message', { status: 500 });
         }
+        logger.endTimer('postprocessing');
+
+        logger.endTimer('total');
+        logger.flush();
 
         const [updatedMessage] = updatedMessages;
         return NextResponse.json(updatedMessage);

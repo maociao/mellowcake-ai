@@ -24,7 +24,7 @@ export const memoryService = {
         // Fetch all memories for the character
         const allMemories = await this.getMemories(characterId);
 
-        if (allMemories.length === 0) return [];
+        if (allMemories.length === 0) return { memories: [], totalFound: 0 };
 
         // 1. Scoring: Calculate relevance for ALL memories
         const terms = query.split(' ').filter(t => t.length > 3);
@@ -52,7 +52,10 @@ export const memoryService = {
         });
 
         // Take top N
-        return scoredMemories.slice(0, limit);
+        return {
+            memories: scoredMemories.slice(0, limit),
+            totalFound: scoredMemories.length
+        };
     },
 
     async generateMemoryFromChat(

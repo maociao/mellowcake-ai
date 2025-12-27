@@ -92,7 +92,7 @@ export default function ChatPage() {
     const [editSessionName, setEditSessionName] = useState('');
 
     // LLM Settings
-    const { temperature, top_p, top_k, min_p, num_predict, trimLength, defaultShortTemperature, defaultLongTemperature, updateSettings } = useSettingsStore();
+    const { temperature, top_p, top_k, min_p, num_predict, trimLength, defaultShortTemperature, defaultLongTemperature, performanceLogging, updateSettings } = useSettingsStore();
 
     // Settings State
     const [personas, setPersonas] = useState<Persona[]>([]);
@@ -1044,7 +1044,8 @@ export default function ChatPage() {
                     lorebooks: selectedLorebooks,
                     personaId: selectedPersonaId,
                     options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
-                    trimLength
+                    trimLength,
+                    performanceLogging
                 })
             });
             if (res.ok) {
@@ -1148,10 +1149,18 @@ export default function ChatPage() {
                 body: JSON.stringify({
                     sessionId: currentSessionId,
                     content: userMessage.content,
+                    model: null, // Let server decide or use default
                     personaId: selectedPersonaId,
                     lorebooks: selectedLorebooks,
-                    options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
-                    trimLength
+                    options: {
+                        temperature: effectiveTemp,
+                        top_p,
+                        top_k,
+                        min_p,
+                        num_predict
+                    },
+                    trimLength,
+                    performanceLogging
                 }),
             });
 
@@ -1265,7 +1274,8 @@ export default function ChatPage() {
                     sessionId: currentSessionId,
                     personaId: selectedPersonaId,
                     options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
-                    trimLength
+                    trimLength,
+                    performanceLogging
                 })
             });
             if (res.ok) {

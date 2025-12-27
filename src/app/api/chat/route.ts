@@ -7,15 +7,23 @@ import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
+import { PerformanceLogger } from '@/lib/performance-logger';
 
 export async function POST(request: NextRequest) {
+    let logger: PerformanceLogger | undefined;
+
     try {
         const body = await request.json();
-        const { sessionId, content, model, personaId, lorebooks, options, trimLength } = body;
+        const { sessionId, content, model, personaId, lorebooks, options, trimLength, performanceLogging } = body;
 
         if (!sessionId || !content) {
             return new NextResponse('Missing sessionId or content', { status: 400 });
         }
+
+        // Initialize Logger
+        logger = new PerformanceLogger(sessionId, model || 'default', performanceLogging);
+        logger.startTimer('total');
+        logger.startTimer('preprocessing');
 
         // 1. Get Session & Details
         const session = await chatService.getSessionById(sessionId);
@@ -40,46 +48,56 @@ export async function POST(request: NextRequest) {
         const history = await chatService.getMessages(sessionId);
         console.log(`[Chat API] Retrieved ${history.length} messages from history`);
 
+        logger.endTimer('preprocessing');
+
         // 4. Build Context (Raw Llama 3 Prompt)
+        logger.startTimer('memory_search');
+
         // Expand memory search to include recent context (last 3 messages + current)
         const memoryContext = [
             ...history.slice(-3).map(m => m.content),
             content
         ].join(' ');
         console.log(`[Chat API] Searching memories for character ${character.id} with context length: ${memoryContext.length}`);
-        const memories = await memoryService.searchMemories(character.id, memoryContext);
 
-        // Linked Character Logic
-        let linkedCharacter = null;
-        if (persona && (persona as any).characterId) {
-            if ((persona as any).characterId !== character.id) {
-                console.log(`[Chat API] Fetching linked character ${(persona as any).characterId}`);
-                linkedCharacter = await characterService.getById((persona as any).characterId);
+        // Note: Currently memoryService doesn't return total matches vs dropped. 
+        // We log what we get.
+        const { memories, totalFound } = await memoryService.searchMemories(character.id, memoryContext);
 
-                if (linkedCharacter) {
-                    const linkedMemories = await memoryService.searchMemories(linkedCharacter.id, memoryContext);
-                    if (linkedMemories.length > 0) {
-                        console.log(`[Chat API] Found ${linkedMemories.length} linked memories`);
-                        memories.push(...linkedMemories);
-                    }
-                }
-            } else {
-                linkedCharacter = character;
-            }
+        // Calculate Memory Age Stats
+        if (memories.length > 0) {
+            // Filter out memories with null createdAt and ensure date strings
+            const validDates = memories
+                .map(m => m.createdAt)
+                .filter((d): d is string => d !== null);
+            logger.calculateAgeStats(validDates, 'memory');
 
-            // Re-sort memories
-            if (memories.length > 0) {
-                memories.sort((a: any, b: any) => {
-                    if (b.score !== a.score) return b.score - a.score;
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                });
-                if (memories.length > 10) memories.length = 10;
-            }
+            const scores = memories.map(m => m.score);
+            logger.calculateScoreStats(scores, 'memory');
         }
+
+        // Log metrics immediately
+        logger.logMetric('context_memories_total', totalFound);
+
+        const includedCount = memories.length;
+        const droppedCount = totalFound - includedCount;
+
+        logger.logMetric('context_memories_dropped', droppedCount);
+        if (totalFound > 0) {
+            logger.logMetric('context_memories_dropped_pct', (droppedCount / totalFound) * 100);
+        } else {
+            logger.logMetric('context_memories_dropped_pct', 0);
+        }
+
+        // Linked Character Logic REMOVED for standard chat flow as requested.
+        // Persona memories should only be injected in impersonation calls.
+
+        logger.endTimer('memory_search');
 
         console.log(`[Chat API] Found ${memories.length} relevant memories`);
 
         // Scan Lorebooks
+        logger.startTimer('lore_scan');
         let lorebookContent: { content: string; createdAt: string }[] = [];
         if (lorebooks && lorebooks.length > 0) {
             // 1. Get Always Included Entries
@@ -96,11 +114,35 @@ export async function POST(request: NextRequest) {
 
             // Merge: Always Included first, then Scanned
             lorebookContent = [...alwaysIncluded, ...scannedEntries];
-        }
 
+            if (lorebookContent.length > 0) {
+                logger.calculateAgeStats(lorebookContent.map(l => l.createdAt), 'lore');
+            }
+            logger.logMetric('context_lore_total', lorebookContent.length);
+        }
+        logger.endTimer('lore_scan');
+
+        // Linked Character Logic
+        let linkedCharacter = null;
+        if (persona && (persona as any).characterId) {
+            if ((persona as any).characterId !== character.id) {
+                console.log(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
+                linkedCharacter = await characterService.getById((persona as any).characterId);
+            }
+        }
         // Use the new Llama 3 prompt builder
-        // Use the new Llama 3 prompt builder
+        logger.startTimer('context_construction');
         const { prompt: rawPrompt, breakdown } = contextManager.buildLlama3Prompt(character, persona, history, memories, lorebookContent, session.summary, linkedCharacter, (session as any).responseStyle);
+        logger.endTimer('context_construction');
+
+        // Log Breakdown
+        logger.logMetric('context_usage_system_chars', breakdown.system);
+        logger.logMetric('context_usage_memories_chars', breakdown.memories);
+        logger.logMetric('context_usage_lore_chars', breakdown.lorebook);
+        logger.logMetric('context_usage_history_chars', breakdown.history);
+        logger.logMetric('context_usage_summary_chars', breakdown.summary);
+        logger.logMetric('context_usage_total_chars', breakdown.total);
+
         console.log(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
 
         // 5. Call LLM (Generate)
@@ -117,6 +159,8 @@ export async function POST(request: NextRequest) {
 
         // Use user preference (12288) or default to 8192
         let contextLimit = 8192;
+        logger.logMetric('context_limit_chars', contextLimit * 4); // Approx chars
+        logger.logMetric('context_usage_pct', (rawPrompt.length / (contextLimit * 4)) * 100);
 
         // Check Context Usage & Summarize if needed (e.g., > 80% usage)
         const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.95; // Using 4 chars per token as a safer estimate
@@ -193,12 +237,15 @@ export async function POST(request: NextRequest) {
             console.log(`[Chat API] Using Long form temperature override: ${effectiveOptions.temperature}`);
         }
 
+        logger.startTimer('llm_generation');
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`], // Stop tokens to prevent self-conversation
             ...effectiveOptions
         });
+        logger.endTimer('llm_generation');
         console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 
+        logger.startTimer('postprocessing');
         // Strip character name prefix if present (e.g. "CharacterName: Hello")
         const prefix = `${character.name}:`;
         if (responseContent.trim().startsWith(prefix)) {
@@ -225,6 +272,10 @@ export async function POST(request: NextRequest) {
         } else {
             console.log(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
         }
+        logger.endTimer('postprocessing');
+
+        logger.endTimer('total');
+        logger.flush();
 
         return NextResponse.json({ userMessage: userMsg, assistantMessage: assistantMsg });
 
