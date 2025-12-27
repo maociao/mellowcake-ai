@@ -25,14 +25,34 @@ export function trimResponse(text: string, maxLength: number = 800): string {
             // Determine expected closing char
             const closeChar = tagStart === '[GENERATE_IMAGE:' ? ']' : ')';
 
-            // Find where it closes (searching forward from the start)
-            const closeIndex = text.indexOf(closeChar, lastIndex);
+            // OPTIMIZATION: Check if there is a closing char AFTER the current cutoff
+            // This handles cases where the tag is very long or contains nested brackets
+            // We search for the first closer after the cutoff
+            const candidateCloseIndex = text.indexOf(closeChar, cutOffIndex);
 
-            // If it closes AFTER the cutoff, ensuring the tag is complete is prioritized
-            // We extend the cutoff to include the closing character
+            if (candidateCloseIndex !== -1) {
+                // Verify this closer belongs to OUR tag and not a subsequent one
+                // Check if any OTHER tag formatting starts between our start and this candidate close
+                // We only care about the specific tags we track
+                let hasInterveningTag = false;
+                for (const otherTag of tags) {
+                    const intervention = text.indexOf(otherTag, lastIndex + 1);
+                    if (intervention !== -1 && intervention < candidateCloseIndex) {
+                        hasInterveningTag = true;
+                        break;
+                    }
+                }
+
+                if (!hasInterveningTag) {
+                    // Safe to extend!
+                    cutOffIndex = candidateCloseIndex + 1;
+                    continue; // Done with this tag type, check others (though usually order matters less here)
+                }
+            }
+
+            // Fallback: Standard search (if the tag actually ended before cutoff, or we found an conflict)
+            const closeIndex = text.indexOf(closeChar, lastIndex);
             if (closeIndex !== -1 && closeIndex >= cutOffIndex) {
-                // Check if extending is reasonable (e.g. don't extend by 1000 chars, but a prompt shouldn't be that massive)
-                // Let's blindly trust it for now as per user request to "exceed the character length"
                 cutOffIndex = closeIndex + 1;
             }
         }
