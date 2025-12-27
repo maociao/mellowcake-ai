@@ -1041,6 +1041,8 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     messageId,
+                    lorebooks: selectedLorebooks,
+                    personaId: selectedPersonaId,
                     options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
                     trimLength
                 })

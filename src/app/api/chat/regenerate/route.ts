@@ -15,7 +15,7 @@ import { eq } from 'drizzle-orm';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { messageId, options, trimLength } = body;
+        const { messageId, options, trimLength, personaId, lorebooks: lorebooksOverride } = body;
 
         if (!messageId) {
             return new NextResponse('Missing messageId', { status: 400 });
@@ -35,8 +35,10 @@ export async function POST(request: NextRequest) {
         if (!character) return new NextResponse('Character not found', { status: 404 });
 
         let persona = null;
-        if (session.personaId) {
-            persona = await personaService.getById(session.personaId);
+        // Use override if provided, otherwise session default
+        const activePersonaId = personaId || session.personaId;
+        if (activePersonaId) {
+            persona = await personaService.getById(activePersonaId);
         }
 
         // 3. Get History UP TO the target message (exclusive)
@@ -90,7 +92,12 @@ export async function POST(request: NextRequest) {
 
         // Scan Lorebooks
         let lorebookContent: { content: string; createdAt: string }[] = [];
-        const lorebooks = session.lorebooks ? JSON.parse(session.lorebooks) : (character.lorebooks ? JSON.parse(character.lorebooks) : []);
+
+        // Use override if provided, otherwise session default, otherwise character default
+        let lorebooks = lorebooksOverride;
+        if (!lorebooks) {
+            lorebooks = session.lorebooks ? JSON.parse(session.lorebooks) : (character.lorebooks ? JSON.parse(character.lorebooks) : []);
+        }
 
         if (lorebooks && lorebooks.length > 0) {
             // 1. Get Always Included Entries
