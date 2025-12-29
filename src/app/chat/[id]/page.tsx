@@ -1312,26 +1312,43 @@ export default function ChatPage() {
             console.log(`Triggering auto-image generation for message ${messageId}: ${description}`);
 
             // Enhance prompt if character name is present
+            // Enhance prompt if character or persona details are present
             let finalPrompt = description;
-            if (character && description.toLowerCase().includes(character.name.toLowerCase())) {
-                const enhancements = [];
-                // Add description first as it often contains the most visual info
-                // Add description first as it often contains the most visual info
-                // if (character.description) enhancements.push(character.description); // Removed to prevent background story pollution
-                if (character.appearance) enhancements.push(character.appearance);
-                if (character.personality) enhancements.push(character.personality);
+            const enhancements: string[] = [];
 
-                if (enhancements.length > 0) {
-                    finalPrompt = `${description}, ${enhancements.join(', ')}`;
-                    console.log(`Enhanced prompt with character details: ${finalPrompt}`);
+            if (character && description.toLowerCase().includes(character.name.toLowerCase())) {
+                // Default Character Logic (only if name mentioned)
+                enhancements.push('(' + character.name + ' is a ' + character.appearance + ' who is ' + character.personality + ')');
+            }
+
+            const currentPersona = personas.find(p => p.id === selectedPersonaId);
+
+            if (currentPersona && description.toLowerCase().includes(currentPersona.name.toLowerCase().split(' ')[0])) {
+                if (currentPersona.characterId) {
+                    // Use Linked Character
+                    const linkedCharacter = allCharacters.find(c => c.id === currentPersona.characterId);
+                    if (linkedCharacter) {
+                        enhancements.push('(' + linkedCharacter.name + ' is a ' + linkedCharacter.appearance + ' who is ' + linkedCharacter.personality + ')');
+                    } else {
+                        // Fallback if linked character not found? Or just use persona
+                        enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
+                    }
+                } else {
+                    // No Linked Character - Use Persona
+                    enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
                 }
+            }
+
+            if (enhancements.length > 0) {
+                finalPrompt = `${enhancements.join(', ')}, (${description})`;
+                console.log(`Enhanced prompt with character details: ${finalPrompt}`);
             }
 
             // 1. Call Generate API
             const res = await fetch('/api/images/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description: finalPrompt })
+                body: JSON.stringify({ description: finalPrompt, type: 'message' })
             });
 
             if (!res.ok) throw new Error('Failed to request generation');

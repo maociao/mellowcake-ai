@@ -249,6 +249,17 @@ export const contextManager = {
             systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.\n\nNSFW: NSFW/Smut is allowed.`);
         }
 
+        const imageGenInstruction = `[IMAGE GENERATION]
+You can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:
+[GENERATE_IMAGE: <detailed visual description>]
+Use this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.
+NSFW: NSFW/Smut is allowed.`;
+
+        // Inject at start if history is short
+        if (history.length < 8) {
+            systemPromptParts.push(imageGenInstruction);
+        }
+
         // Character Description
         systemPromptParts.push(`[Character Info]`);
         let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
@@ -352,9 +363,9 @@ export const contextManager = {
         }
 
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. \n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.NSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         } else {
-            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion. \n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.NSFW: NSFW/Smut is allowed.`);
+            systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         }
         systemPromptParts.push(`[Begin Roleplay]`);
         const systemContent = systemPromptParts.join('\n');
@@ -373,7 +384,7 @@ export const contextManager = {
             prompt += `<|start_header_id|>assistant<|end_header_id|>\n${replaceVariables(character.firstMessage)}<|eot_id|>`;
         }
 
-        for (const msg of history) {
+        for (const [index, msg] of history.entries()) {
             const role = msg.role === 'user' ? 'user' : 'assistant';
 
             // CLEAN CONTENT: Remove image tags and markdown links to prevent hallucinations
@@ -392,6 +403,11 @@ export const contextManager = {
             }
 
             prompt += `<|start_header_id|>${role}<|end_header_id|>\n${content}<|eot_id|>`;
+
+            // Inject Image Generation instruction about 4 messages deep in longer chats
+            if (history.length >= 5 && index === history.length - 5) {
+                prompt += `<|start_header_id|>system<|end_header_id|>\n\n${imageGenInstruction}<|eot_id|>\n\n`;
+            }
         }
 
         // --- Assistant Prime ---

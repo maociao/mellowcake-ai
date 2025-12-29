@@ -42,13 +42,21 @@ async function uploadImageToComfy(localFilePath: string): Promise<string> {
 export async function POST(req: NextRequest) {
     console.log('[Generate API] Received generation request');
     try {
-        const { description, useImg2Img, sourceImage } = await req.json();
+        const body = await req.json();
+        console.log('[Generate API] Request Body:', JSON.stringify(body, null, 2));
+        const { description, useImg2Img, sourceImage, type } = body;
 
         // 1. Select & Prepare Workflow
-        const workflowFilename = useImg2Img
-            ? 'mellowcake-ai-avatar-image-2-image.json'
-            : 'mellowcake_character_avatar.json';
+        let workflowFilename = 'mellowcake_character_avatar.json'; // Default (Avatar Txt2Img)
 
+        if (useImg2Img) {
+            workflowFilename = 'mellowcake-ai-avatar-image-2-image.json';
+        } else if (type === 'message') {
+            workflowFilename = 'mellowcake_message_imagen.json';
+        }
+
+        console.log(`[Generate API] useImg2Img: ${useImg2Img}, type: ${type}`);
+        console.log(`[Generate API] Selected workflow: ${workflowFilename}`);
         const workflowPath = path.join(process.cwd(), workflowFilename);
 
         if (!fs.existsSync(workflowPath)) {

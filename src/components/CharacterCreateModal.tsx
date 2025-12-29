@@ -78,7 +78,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <AvatarPicker
                         currentAvatar={avatarPath}
                         onAvatarChange={setAvatarPath}
-                        generateContext={appearance + ' ' + personality}
+                        generateContext={appearance + ' ' + personality + ' portrait of a character'}
                     />
 
                     <div>
