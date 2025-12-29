@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Load NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+
 # Configuration
 BACKUP_DIR="/home/mellowcake/backups"
 SOURCE_DIR="/home/mellowcake/Code/mellowcake-ai"

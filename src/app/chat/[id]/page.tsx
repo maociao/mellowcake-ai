@@ -134,6 +134,9 @@ export default function ChatPage() {
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const emojiButtonRef = useRef<HTMLButtonElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const touchStartRef = useRef<number | null>(null);
+    const touchEndRef = useRef<number | null>(null);
 
     const deleteLorebook = async (id: number) => {
         if (!confirm('Are you sure you want to delete this lorebook? All entries will also be deleted.')) return;
@@ -607,7 +610,7 @@ export default function ChatPage() {
         );
     }
 
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+
 
     // Load Data
     const loadData = async () => {
@@ -1056,6 +1059,36 @@ export default function ChatPage() {
             console.error('Failed to regenerate', e);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Swipe Handlers
+    const onTouchStart = (e: React.TouchEvent) => {
+        touchEndRef.current = null;
+        touchStartRef.current = e.targetTouches[0].clientX;
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        touchEndRef.current = e.targetTouches[0].clientX;
+    };
+
+    const onTouchEnd = (messageId: number) => {
+        if (!touchStartRef.current || !touchEndRef.current) return;
+
+        const distance = touchStartRef.current - touchEndRef.current;
+        const isLeftSwipe = distance > 50;
+        const isRightSwipe = distance < -50;
+
+        if (isLeftSwipe) {
+            // Swiped left (finger moved right to left) -> Go Next -> 'right' direction in backend logic?
+            // Existing logic:
+            // <button onClick={() => handleSwipe(msg.id!, 'right')} ...> (Right Arrow Icon) -> Next
+            // <button onClick={() => handleSwipe(msg.id!, 'left')} ...> (Left Arrow Icon) -> Prev
+            // Usually Swipe Left (content moves left) reveals right content -> Next
+            handleSwipe(messageId, 'right');
+        } else if (isRightSwipe) {
+            // Swiped right -> Go Prev -> 'left' direction
+            handleSwipe(messageId, 'left');
         }
     };
 
@@ -2128,6 +2161,12 @@ export default function ChatPage() {
                         }
                     }
 
+                    const swipeProps = (msg.role === 'assistant' && msg.id && msg.swipes && JSON.parse(msg.swipes).length > 1 && idx === messages.length - 1) ? {
+                        onTouchStart,
+                        onTouchMove,
+                        onTouchEnd: () => onTouchEnd(msg.id!)
+                    } : {};
+
                     return (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2`}>
                             {/* Assistant Avatar (Left) */}
@@ -2138,6 +2177,7 @@ export default function ChatPage() {
                             )}
 
                             <div
+                                {...swipeProps}
                                 className={`max-w-[80%] rounded-2xl relative group ${msg.role === 'user'
                                     ? 'bg-blue-600 text-white rounded-br-none px-3 pb-3 pt-10'
                                     : 'bg-gray-700 text-gray-100 rounded-bl-none px-3 pb-3 pt-10'
