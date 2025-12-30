@@ -5,10 +5,11 @@ import { characterVideos, characters } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { Logger } from '@/lib/logger';
 
 // Helper to upload image to ComfyUI
 async function uploadImageToComfy(imagePath: string, filename: string) {
-    console.log(`[Video Gen] Uploading image: ${filename}`);
+    Logger.debug(`[Video Gen] Uploading image: ${filename}`);
     const formData = new FormData();
     const fileBuffer = fs.readFileSync(imagePath);
     const blob = new Blob([fileBuffer], { type: 'image/png' }); // Assuming PNG for now
@@ -50,10 +51,10 @@ async function getHistory(promptId: string) {
 }
 
 export async function POST(req: NextRequest) {
-    console.log('[Video Gen] Received generation request');
+    Logger.info('[Video Gen] Received generation request');
     try {
         const { characterId } = await req.json();
-        console.log(`[Video Gen] Processing for characterId: ${characterId}`);
+        Logger.debug(`[Video Gen] Processing for characterId: ${characterId}`);
         if (!characterId) {
             return NextResponse.json({ error: 'Missing characterId' }, { status: 400 });
         }
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 5. Queue Prompt
+        Logger.comfy('video-gen', workflow);
         const queueRes = await queuePrompt(workflow);
         const promptId = queueRes.prompt_id;
 
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: 'queued', promptId });
 
     } catch (error: any) {
-        console.error('Generate error:', error);
+        Logger.error('Generate error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

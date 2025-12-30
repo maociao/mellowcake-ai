@@ -3,13 +3,14 @@ import { characterService } from '@/services/character-service';
 import { lorebookService } from '@/services/lorebook-service';
 import path from 'path';
 import fs from 'fs';
+import { Logger } from '@/lib/logger';
 
 export async function GET() {
     try {
         const characters = await characterService.getAll();
         return NextResponse.json(characters);
     } catch (error) {
-        console.error('Error fetching characters:', error);
+        Logger.error('Error fetching characters:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -51,9 +52,9 @@ export async function POST(request: NextRequest) {
                     // The client expects /api/avatars/[filename] format which resolves to public/characters/[filename]
                     // (Note: /api/characters/[filename] logic in api/avatars route handles serving from both temp and chars)
                     body.avatarPath = `/api/avatars/${finalFilename}`;
-                    console.log(`[Character API] Moved avatar from ${filename} to ${finalFilename}`);
+                    Logger.info(`[Character API] Moved avatar from ${filename} to ${finalFilename}`);
                 } catch (err) {
-                    console.error('[Character API] Failed to move avatar file:', err);
+                    Logger.error('[Character API] Failed to move avatar file:', err);
                     // Decide: Fail request or continue with temp path?
                     // Continue with temp path to avoid data loss, but log error.
                 }
@@ -85,13 +86,13 @@ export async function POST(request: NextRequest) {
             }
 
         } catch (e) {
-            console.error('Failed to create default lorebook', e);
+            Logger.error('Failed to create default lorebook', e);
         }
 
         const character = await characterService.create(body);
         return NextResponse.json(character, { status: 201 });
     } catch (error) {
-        console.error('Error creating character:', error);
+        Logger.error('Error creating character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

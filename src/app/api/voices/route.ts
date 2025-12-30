@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { voices } from '@/lib/db/schema';
 import path from 'path';
 import fs from 'fs';
+import { Logger } from '@/lib/logger';
 
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
         const allVoices = await db.select().from(voices).orderBy(voices.name);
         return NextResponse.json(allVoices);
     } catch (error) {
-        console.error('Failed to fetch voices:', error);
+        Logger.error('Failed to fetch voices:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(result[0]);
 
     } catch (error) {
-        console.error('Failed to upload voice:', error);
+        Logger.error('Failed to upload voice:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

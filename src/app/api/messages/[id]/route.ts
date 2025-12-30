@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { chatService } from '@/services/chat-service';
+import { Logger } from '@/lib/logger';
 
 export async function PATCH(
     request: NextRequest,
@@ -22,7 +23,7 @@ export async function PATCH(
 
         return NextResponse.json(updated[0]);
     } catch (error) {
-        console.error('Error updating message:', error);
+        Logger.error('Error updating message:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -40,7 +41,7 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting message:', error);
+        Logger.error('Error deleting message:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

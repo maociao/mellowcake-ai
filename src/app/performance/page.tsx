@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { PerformanceMetrics } from '@/lib/performance-logger';
+import { Logger } from '@/lib/logger';
 
 export default function PerformanceDashboard() {
     const [logs, setLogs] = useState<PerformanceMetrics[]>([]);
@@ -14,7 +15,7 @@ export default function PerformanceDashboard() {
                 const data = await res.json();
                 setLogs(data.logs || []);
             } catch (err) {
-                console.error('Failed to fetch logs', err);
+                Logger.error('Failed to fetch logs', err);
             } finally {
                 setLoading(false);
             }

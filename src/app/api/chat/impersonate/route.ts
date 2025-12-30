@@ -8,6 +8,7 @@ import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
+import { Logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     let logger: PerformanceLogger | undefined;
@@ -65,13 +66,13 @@ export async function POST(request: NextRequest) {
         if (persona && (persona as any).characterId) {
             // Fetch the actual linked character object
             if ((persona as any).characterId !== character.id) {
-                console.log(`[Impersonate API] Fetching linked character ${(persona as any).characterId}`);
+                Logger.debug(`[Impersonate API] Fetching linked character ${(persona as any).characterId}`);
                 linkedCharacter = await characterService.getById((persona as any).characterId);
 
                 if (linkedCharacter) {
                     const { memories: linkedMemories } = await memoryService.searchMemories(linkedCharacter.id, query);
                     if (linkedMemories.length > 0) {
-                        console.log(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
+                        Logger.debug(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
                         memories.length = 0;
                         memories.push(...linkedMemories);
                     }
@@ -198,7 +199,7 @@ export async function POST(request: NextRequest) {
         // Update model in logger
         logger.logMetric('model' as any, model); // Hacksy since I didn't verify if I can update fields
 
-        console.log(`[Impersonate API] Generating response for persona ${persona?.name || 'User'}...`);
+        Logger.info(`[Impersonate API] Generating response for persona ${persona?.name || 'User'}...`);
         logger.logMetric('context_usage_total_chars', prompt.length);
 
         // Calculate effective temperature based on style
@@ -218,6 +219,7 @@ export async function POST(request: NextRequest) {
             ...effectiveOptions
         });
         logger.endTimer('llm_generation');
+        Logger.llm('impersonate', { prompt, response: responseContent, model });
 
         logger.startTimer('postprocessing');
         // Clean up response
@@ -237,7 +239,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ content: cleaned });
 
     } catch (error) {
-        console.error('[Impersonate API] Error:', error);
+        Logger.error('[Impersonate API] Error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

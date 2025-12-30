@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { memoryService } from '@/services/memory-service';
+import { Logger } from '@/lib/logger';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -8,7 +9,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         await memoryService.deleteMemory(id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting memory:', error);
+        Logger.error('Error deleting memory:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -23,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const [updated] = await memoryService.updateMemory(id, content, keywords);
         return NextResponse.json(updated);
     } catch (error) {
-        console.error('Error updating memory:', error);
+        Logger.error('Error updating memory:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

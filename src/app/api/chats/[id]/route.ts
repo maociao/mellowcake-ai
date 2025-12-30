@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatService } from '@/services/chat-service';
+import { Logger } from '@/lib/logger';
 
 export async function GET(
     request: NextRequest,
@@ -16,7 +17,7 @@ export async function GET(
 
         return NextResponse.json({ session, messages });
     } catch (error) {
-        console.error('Error fetching chat:', error);
+        Logger.error('Error fetching chat:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -32,7 +33,7 @@ export async function DELETE(
         await chatService.deleteSession(id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting session:', error);
+        Logger.error('Error deleting session:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -49,7 +50,7 @@ export async function PATCH(
         const updatedSession = await chatService.updateSession(id, body);
         return NextResponse.json(updatedSession);
     } catch (error) {
-        console.error('Error updating session:', error);
+        Logger.error('Error updating session:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

@@ -8,6 +8,7 @@ import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { VoiceBankModal } from '@/components/VoiceBankModal';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSettingsStore } from '@/lib/store/settings-store';
+import { Logger } from '@/lib/logger';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -150,7 +151,7 @@ export default function ChatPage() {
                 loadData();
             }
         } catch (e) {
-            console.error('Failed to delete lorebook', e);
+            Logger.error('Failed to delete lorebook', e);
         }
     };
 
@@ -217,7 +218,7 @@ export default function ChatPage() {
                 const res = await fetch(`/api/memories?characterId=${characterId}`);
                 if (res.ok) setMemories(await res.json());
             } catch (e) {
-                console.error(e);
+                Logger.error('Fetch memories error:', e);
             } finally {
                 setLoading(false);
             }
@@ -242,7 +243,7 @@ export default function ChatPage() {
                     fetchMemories();
                 }
             } catch (e) {
-                console.error(e);
+                Logger.error('Create memory error:', e);
             }
         };
 
@@ -252,7 +253,7 @@ export default function ChatPage() {
                 const res = await fetch(`/api/memories/${id}`, { method: 'DELETE' });
                 if (res.ok) fetchMemories();
             } catch (e) {
-                console.error(e);
+                Logger.error('Delete memory error:', e);
             }
         };
 
@@ -319,7 +320,7 @@ export default function ChatPage() {
                 const res = await fetch(`/api/videos?characterId=${characterId}`);
                 if (res.ok) setVideos(await res.json());
             } catch (e) {
-                console.error(e);
+                Logger.error('Fetch videos error:', e);
             } finally {
                 setLoading(false);
             }
@@ -361,12 +362,12 @@ export default function ChatPage() {
                             setStatus('Generating... (this may take a few minutes)');
                         }
                     } catch (e) {
-                        console.error('Polling error', e);
+                        Logger.error('Polling error', e);
                     }
                 }, 5000); // Poll every 5 seconds
 
             } catch (e: any) {
-                console.error(e);
+                Logger.error('Video generation error:', e);
                 setGenerating(false);
                 setStatus(`Error: ${e.message}`);
             }
@@ -378,7 +379,7 @@ export default function ChatPage() {
                 const res = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
                 if (res.ok) fetchVideos();
             } catch (e) {
-                console.error(e);
+                Logger.error('Delete video error:', e);
             }
         };
 
@@ -391,7 +392,7 @@ export default function ChatPage() {
                 });
                 if (res.ok) fetchVideos();
             } catch (e) {
-                console.error(e);
+                Logger.error('Set default video error:', e);
             }
         };
 
@@ -462,7 +463,7 @@ export default function ChatPage() {
                 loadData();
                 alert('Voice speed saved!');
             } catch (e) {
-                console.error(e);
+                Logger.error('Failed to save speed:', e);
                 alert('Failed to save speed');
             }
         };
@@ -476,7 +477,7 @@ export default function ChatPage() {
                 });
                 loadData();
             } catch (e) {
-                console.error(e);
+                Logger.error('Failed to assign voice:', e);
                 alert('Failed to assign voice');
             }
         };
@@ -491,7 +492,7 @@ export default function ChatPage() {
                 });
                 loadData();
             } catch (e) {
-                console.error(e);
+                Logger.error('Failed to unassign voice:', e);
                 alert('Failed to unassign voice');
             }
         };
@@ -592,7 +593,7 @@ export default function ChatPage() {
                                             alert('TTS Generation failed');
                                         }
                                     } catch (err) {
-                                        console.error(err);
+                                        Logger.error('Error generating TTS:', err);
                                         alert('Error generating TTS');
                                     } finally {
                                         btn.disabled = false;
@@ -654,7 +655,7 @@ export default function ChatPage() {
             }
 
         } catch (err) {
-            console.error('Failed to load data:', err);
+            Logger.error('Failed to load data:', err);
         }
     };
 
@@ -679,13 +680,13 @@ export default function ChatPage() {
                     try {
                         setSelectedLorebooks(JSON.parse(data.session.lorebooks));
                     } catch (e) {
-                        console.error('Error parsing session lorebooks', e);
+                        Logger.error('Error parsing session lorebooks', e);
                     }
                 } else if (character?.lorebooks) {
                     try {
                         setSelectedLorebooks(JSON.parse(character.lorebooks));
                     } catch (e) {
-                        console.error('Error parsing character default lorebooks', e);
+                        Logger.error('Error parsing character default lorebooks', e);
                     }
                 } else {
                     setSelectedLorebooks([]);
@@ -699,7 +700,7 @@ export default function ChatPage() {
                 setLongTemp(data.session.longTemperature);
             }
         } catch (e) {
-            console.error('Failed to load session', e);
+            Logger.error('Failed to load session', e);
         }
     };
 
@@ -720,7 +721,7 @@ export default function ChatPage() {
                 await selectSession(newSession.id);
             }
         } catch (e) {
-            console.error('Failed to create session', e);
+            Logger.error('Failed to create session', e);
         }
     };
 
@@ -740,7 +741,7 @@ export default function ChatPage() {
                     body: JSON.stringify({ lorebooks: newSelection })
                 });
             } catch (e) {
-                console.error('Failed to save session lorebooks', e);
+                Logger.error('Failed to save session lorebooks', e);
             }
         }
     };
@@ -755,7 +756,7 @@ export default function ChatPage() {
                     body: JSON.stringify({ responseStyle: style })
                 });
             } catch (e) {
-                console.error('Failed to save response style', e);
+                Logger.error('Failed to save response style', e);
             }
         }
     };
@@ -773,7 +774,7 @@ export default function ChatPage() {
                 });
                 // Optional: visual feedback
             } catch (e) {
-                console.error('Failed to save temp overrides', e);
+                Logger.error('Failed to save temp overrides', e);
             }
         }
     };
@@ -794,7 +795,7 @@ export default function ChatPage() {
                 setEditingSessionId(null);
             }
         } catch (e) {
-            console.error('Failed to rename session', e);
+            Logger.error('Failed to rename session', e);
         }
     };
 
@@ -816,7 +817,7 @@ export default function ChatPage() {
                 }
             }
         } catch (e) {
-            console.error('Failed to delete session', e);
+            Logger.error('Failed to delete session', e);
         }
     };
 
@@ -844,7 +845,7 @@ export default function ChatPage() {
                 setShowCharEdit(false);
             }
         } catch (e) {
-            console.error('Failed to update character', e);
+            Logger.error('Failed to update character', e);
         }
     };
 
@@ -864,7 +865,7 @@ export default function ChatPage() {
                 alert('Failed to delete character');
             }
         } catch (e) {
-            console.error('Failed to delete character', e);
+            Logger.error('Failed to delete character', e);
             alert('Error deleting character');
         }
     };
@@ -902,7 +903,7 @@ export default function ChatPage() {
                 setShowPersonaEdit(null);
             }
         } catch (e) {
-            console.error('Failed to save persona', e);
+            Logger.error('Failed to save persona', e);
         }
     };
 
@@ -918,7 +919,7 @@ export default function ChatPage() {
                 }
             }
         } catch (e) {
-            console.error('Failed to delete persona', e);
+            Logger.error('Failed to delete persona', e);
         }
     };
 
@@ -930,7 +931,7 @@ export default function ChatPage() {
                 setEditingLorebook(data);
             }
         } catch (e) {
-            console.error('Failed to load lorebook details', e);
+            Logger.error('Failed to load lorebook details', e);
         }
     };
 
@@ -961,7 +962,7 @@ export default function ChatPage() {
                 setEditingLorebook(saved); // Update current view
             }
         } catch (e) {
-            console.error('Failed to save lorebook', e);
+            Logger.error('Failed to save lorebook', e);
         }
     };
 
@@ -1000,7 +1001,7 @@ export default function ChatPage() {
                 setEditingEntry(null);
             }
         } catch (e) {
-            console.error('Failed to save entry', e);
+            Logger.error('Failed to save entry', e);
         }
     };
 
@@ -1014,7 +1015,7 @@ export default function ChatPage() {
                 loadLorebookDetails(editingLorebook.id);
             }
         } catch (e) {
-            console.error('Failed to delete entry', e);
+            Logger.error('Failed to delete entry', e);
         }
     };
 
@@ -1056,7 +1057,7 @@ export default function ChatPage() {
                 setMessages(prev => prev.map(m => (m.id === messageId ? updatedMsg : m)));
             }
         } catch (e) {
-            console.error('Failed to regenerate', e);
+            Logger.error('Failed to regenerate', e);
         } finally {
             setIsLoading(false);
         }
@@ -1104,7 +1105,7 @@ export default function ChatPage() {
                 setMessages(prev => prev.map(m => (m.id === messageId ? updatedMsg : m)));
             }
         } catch (e) {
-            console.error('Failed to swipe', e);
+            Logger.error('Failed to swipe', e);
         }
     };
 
@@ -1133,7 +1134,7 @@ export default function ChatPage() {
                     }
                 }
             } catch (e) {
-                console.error('Failed to delete swipe', e);
+                Logger.error('Failed to delete swipe', e);
             }
             return;
         }
@@ -1154,7 +1155,7 @@ export default function ChatPage() {
                 });
             }
         } catch (e) {
-            console.error('Failed to delete message', e);
+            Logger.error('Failed to delete message', e);
         }
     };
 
@@ -1209,7 +1210,7 @@ export default function ChatPage() {
                 return [...newMessages, assistantMsg];
             });
         } catch (error) {
-            console.error('Error sending message:', error);
+            Logger.error('Error sending message:', error);
             setMessages(prev => [...prev, { role: 'assistant', content: 'Error: Failed to get response.' }]);
         } finally {
             setIsLoading(false);
@@ -1281,10 +1282,10 @@ export default function ChatPage() {
                     }));
                 }
             } else {
-                console.error('TTS failed');
+                Logger.error('TTS failed');
             }
         } catch (e) {
-            console.error(e);
+            Logger.error('TTS error:', e);
         } finally {
             if (messageId) setAudioGeneratingId(null);
         }
@@ -1316,7 +1317,7 @@ export default function ChatPage() {
                 setInput(data.content);
             }
         } catch (e) {
-            console.error('Failed to impersonate', e);
+            Logger.error('Failed to impersonate', e);
         } finally {
             setIsLoading(false);
         }
@@ -1342,7 +1343,7 @@ export default function ChatPage() {
 
     const generateImageForMessage = async (messageId: number, description: string, tag: string) => {
         try {
-            console.log(`Triggering auto-image generation for message ${messageId}: ${description}`);
+            Logger.info(`Triggering auto-image generation for message ${messageId}: ${description}`);
 
             // Enhance prompt if character name is present
             // Enhance prompt if character or persona details are present
@@ -1374,7 +1375,7 @@ export default function ChatPage() {
 
             if (enhancements.length > 0) {
                 finalPrompt = `${enhancements.join(', ')}, (${description})`;
-                console.log(`Enhanced prompt with character details: ${finalPrompt}`);
+                Logger.debug(`Enhanced prompt with character details: ${finalPrompt}`);
             }
 
             // 1. Call Generate API
@@ -1419,7 +1420,7 @@ export default function ChatPage() {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ content: newContent })
-                            }).catch(e => console.error('Failed to save image to message', e));
+                            }).catch(e => Logger.error('Failed to save image to message', e));
 
                             return prev.map(m => m.id === messageId ? { ...m, content: newContent } : m);
                         });
@@ -1428,18 +1429,18 @@ export default function ChatPage() {
 
                     } else if (statusData.status === 'failed') {
                         clearInterval(poll);
-                        console.error('Image generation failed');
+                        Logger.error('Image generation failed');
                         processingImages.current.delete(messageId);
                     }
                 } catch (e) {
-                    console.error('Polling error', e);
+                    Logger.error('Polling error', e);
                     clearInterval(poll);
                     processingImages.current.delete(messageId);
                 }
             }, 3000);
 
         } catch (e) {
-            console.error('Image generation error', e);
+            Logger.error('Image generation error', e);
             processingImages.current.delete(messageId);
         }
     };

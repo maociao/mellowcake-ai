@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
+import { Logger } from '@/lib/logger';
 
 const pump = promisify(pipeline);
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ path: publicPath });
 
     } catch (error) {
-        console.error('Error uploading file:', error);
+        Logger.error('Error uploading file:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

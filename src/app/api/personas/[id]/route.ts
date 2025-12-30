@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { personaService } from '@/services/persona-service';
+import { Logger } from '@/lib/logger';
 
 export async function GET(
     request: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
 
         return NextResponse.json(persona);
     } catch (error) {
-        console.error('Error fetching persona:', error);
+        Logger.error('Error fetching persona:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -31,7 +32,7 @@ export async function PUT(
         const updated = await personaService.update(id, body);
         return NextResponse.json(updated);
     } catch (error) {
-        console.error('Error updating persona:', error);
+        Logger.error('Error updating persona:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -47,7 +48,7 @@ export async function DELETE(
         await personaService.delete(id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting persona:', error);
+        Logger.error('Error deleting persona:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -64,7 +65,7 @@ export async function PATCH(
         const updatedPersona = await personaService.update(id, body);
         return NextResponse.json(updatedPersona);
     } catch (error) {
-        console.error('Error updating persona:', error);
+        Logger.error('Error updating persona:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Logger } from '@/lib/logger';
 
 interface Voice {
     id: number;
@@ -54,7 +55,7 @@ export function VoiceBankModal({ isOpen, onClose, onSelect }: VoiceBankModalProp
             // Play new
             const audio = new Audio(`/voices/${filePath}`);
             audio.onended = () => setPlayingId(null);
-            audio.play().catch(e => console.error("Playback failed", e));
+            audio.play().catch(e => Logger.error("Playback failed", e));
             audioRef.current = audio;
             setPlayingId(id);
         }
@@ -74,7 +75,7 @@ export function VoiceBankModal({ isOpen, onClose, onSelect }: VoiceBankModalProp
                 setVoices(await res.json());
             }
         } catch (e) {
-            console.error(e);
+            Logger.error('Fetch voices error:', e);
         } finally {
             setLoading(false);
         }
@@ -106,7 +107,7 @@ export function VoiceBankModal({ isOpen, onClose, onSelect }: VoiceBankModalProp
                 alert('Upload failed');
             }
         } catch (e) {
-            console.error(e);
+            Logger.error('Upload voice error:', e);
         } finally {
             setUploading(false);
         }
@@ -134,7 +135,7 @@ export function VoiceBankModal({ isOpen, onClose, onSelect }: VoiceBankModalProp
                 alert('Update failed');
             }
         } catch (e) {
-            console.error(e);
+            Logger.error('Update voice error:', e);
             alert('Error updating voice');
         }
     };
@@ -145,7 +146,7 @@ export function VoiceBankModal({ isOpen, onClose, onSelect }: VoiceBankModalProp
             const res = await fetch(`/api/voices/${id}`, { method: 'DELETE' });
             if (res.ok) fetchVoices();
         } catch (e) {
-            console.error(e);
+            Logger.error('Delete voice error:', e);
         }
     };
 

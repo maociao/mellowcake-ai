@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
 import { writeFile } from 'fs/promises';
+import { Logger } from '@/lib/logger';
 
 export async function POST(
     request: NextRequest,
@@ -47,7 +48,7 @@ export async function POST(
         return NextResponse.json({ success: true, path: publicPath });
 
     } catch (error) {
-        console.error('Error uploading voice:', error);
+        Logger.error('Error uploading voice:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

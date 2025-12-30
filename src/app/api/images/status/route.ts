@@ -7,6 +7,7 @@ import { pipeline } from 'stream';
 import { promisify } from 'util';
 
 const streamPipeline = promisify(pipeline);
+import { Logger } from '@/lib/logger';
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ status: 'failed', error: 'No output found' });
 
     } catch (error: any) {
-        console.error('Status check error:', error);
+        Logger.error('Status check error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

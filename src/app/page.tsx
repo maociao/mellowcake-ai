@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { SettingsModal } from '@/components/SettingsModal';
 import { CharacterCreateModal } from '@/components/CharacterCreateModal';
+import { Logger } from '@/lib/logger';
 
 interface Character {
   id: number;
@@ -27,7 +28,7 @@ export default function Home() {
         setLoading(false);
       })
       .catch((err) => {
-        console.error(err);
+        Logger.error('Failed to fetch characters:', err);
         setLoading(false);
       });
   };

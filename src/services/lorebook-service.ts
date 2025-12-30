@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { lorebooks, lorebookEntries } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { Logger } from '@/lib/logger';
 
 export const lorebookService = {
     async getAll() {
@@ -120,7 +121,7 @@ export const lorebookService = {
                         }
                     }
                 } catch (e) {
-                    console.error(`Error parsing keywords for entry ${entry.id}:`, e);
+                    Logger.error(`Error parsing keywords for entry ${entry.id}:`, e);
                 }
             }
         }

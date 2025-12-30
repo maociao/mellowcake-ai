@@ -4,6 +4,7 @@ import { voices, characters } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
+import { Logger } from '@/lib/logger';
 
 export async function DELETE(
     request: NextRequest,
@@ -40,7 +41,7 @@ export async function DELETE(
         return new NextResponse('Voice deleted', { status: 200 });
 
     } catch (error) {
-        console.error('Failed to delete voice:', error);
+        Logger.error('Failed to delete voice:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -64,7 +65,7 @@ export async function PATCH(
 
         return new NextResponse('Voice updated', { status: 200 });
     } catch (error) {
-        console.error('Failed to update voice:', error);
+        Logger.error('Failed to update voice:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

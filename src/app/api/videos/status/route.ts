@@ -8,6 +8,7 @@ import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { eq } from 'drizzle-orm';
+import { Logger } from '@/lib/logger';
 
 const streamPipeline = promisify(pipeline);
 
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ status: 'failed', error: 'No output found' });
 
     } catch (error: any) {
-        console.error('Status check error:', error);
+        Logger.error('Status check error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

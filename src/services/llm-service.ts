@@ -1,4 +1,5 @@
 import { CONFIG } from '@/config';
+import { Logger } from '@/lib/logger';
 
 export interface LLMParams {
     temperature?: number;
@@ -23,7 +24,7 @@ export const llmService = {
             const data = await response.json();
             return data.models;
         } catch (error) {
-            console.error('Error fetching models:', error);
+            Logger.error('Error fetching models:', error);
             return [];
         }
     },
@@ -38,7 +39,7 @@ export const llmService = {
             if (!response.ok) return null;
             return await response.json();
         } catch (error) {
-            console.error('Error fetching model info:', error);
+            Logger.error('Error fetching model info:', error);
             return null;
         }
     },
@@ -69,7 +70,7 @@ export const llmService = {
             const data = await response.json();
             return data.message.content;
         } catch (error) {
-            console.error('Error calling Ollama:', error);
+            Logger.error('Error calling Ollama:', error);
             throw error;
         }
     },
@@ -100,7 +101,7 @@ export const llmService = {
             const data = await response.json();
             return data.response;
         } catch (error) {
-            console.error('Error calling Ollama generate:', error);
+            Logger.error('Error calling Ollama generate:', error);
             throw error;
         }
     },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Logger } from '@/lib/logger';
 
 interface AvatarPickerProps {
     currentAvatar: string | null;
@@ -51,7 +52,7 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
             setPreview(data.path);
             if (useImg2Img) setBaseImage(data.path); // If mode is active, new upload becomes base
         } catch (error) {
-            console.error(error);
+            Logger.error('Upload failed:', error);
             alert('Failed to upload image');
         } finally {
             setUploading(false);
@@ -123,7 +124,7 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
                         setGenStatus('Generating...');
                     }
                 } catch (e) {
-                    console.error(e);
+                    Logger.error('Polling error:', e);
                     clearInterval(poll);
                     setGenerating(false);
                     setGenStatus('Error polling');
@@ -131,7 +132,7 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
             }, 2000);
 
         } catch (e) {
-            console.error(e);
+            Logger.error('Generation start error:', e);
             setGenerating(false);
             setGenStatus('Error starting');
             alert('Failed to start generation');

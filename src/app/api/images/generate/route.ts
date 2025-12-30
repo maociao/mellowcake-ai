@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CONFIG } from '@/config';
 import fs from 'fs';
 import path from 'path';
+import { Logger } from '@/lib/logger';
 
 // Helper to queue prompt
 async function queuePrompt(workflow: any) {
@@ -40,10 +41,10 @@ async function uploadImageToComfy(localFilePath: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-    console.log('[Generate API] Received generation request');
+    Logger.info('[Generate API] Received generation request');
     try {
         const body = await req.json();
-        console.log('[Generate API] Request Body:', JSON.stringify(body, null, 2));
+        Logger.debug('[Generate API] Request Body:', JSON.stringify(body, null, 2));
         const { description, useImg2Img, sourceImage, type } = body;
 
         // 1. Select & Prepare Workflow
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
             workflowFilename = 'mellowcake_message_imagen.json';
         }
 
-        console.log(`[Generate API] useImg2Img: ${useImg2Img}, type: ${type}`);
-        console.log(`[Generate API] Selected workflow: ${workflowFilename}`);
+        Logger.debug(`[Generate API] useImg2Img: ${useImg2Img}, type: ${type}`);
+        Logger.debug(`[Generate API] Selected workflow: ${workflowFilename}`);
         const workflowPath = path.join(process.cwd(), workflowFilename);
 
         if (!fs.existsSync(workflowPath)) {
@@ -107,14 +108,14 @@ export async function POST(req: NextRequest) {
         }
 
         // 5. Queue Prompt
-        console.log('[Generate API] Queuing ComfyUI workflow:', JSON.stringify(workflow, null, 2));
+        Logger.comfy('image-gen', workflow);
         const queueRes = await queuePrompt(workflow);
         const promptId = queueRes.prompt_id;
 
         return NextResponse.json({ status: 'queued', promptId });
 
     } catch (error: any) {
-        console.error('Generate error:', error);
+        Logger.error('Generate error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

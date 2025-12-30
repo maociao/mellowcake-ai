@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { memoryService } from '@/services/memory-service';
+import { Logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
         const memories = await memoryService.getMemories(parseInt(characterId));
         return NextResponse.json(memories);
     } catch (error) {
-        console.error('Error fetching memories:', error);
+        Logger.error('Error fetching memories:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
         const [memory] = await memoryService.createMemory(characterId, content, keywords || []);
         return NextResponse.json(memory);
     } catch (error) {
-        console.error('Error creating memory:', error);
+        Logger.error('Error creating memory:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

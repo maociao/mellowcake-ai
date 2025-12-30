@@ -4,6 +4,7 @@ import { lorebookService } from './lorebook-service';
 import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { Logger } from '@/lib/logger';
 
 // Helper to extract PNG metadata (reused logic, but adapted)
 function extractPngMetadata(buffer: Buffer): any | null {
@@ -32,7 +33,7 @@ function extractPngMetadata(buffer: Buffer): any | null {
                         const decoded = Buffer.from(text, 'base64').toString('utf8');
                         return JSON.parse(decoded);
                     } catch (e) {
-                        console.error('Error decoding chara chunk:', e);
+                        Logger.error('Error decoding chara chunk:', e);
                     }
                 }
             }
@@ -146,7 +147,7 @@ export const characterService = {
                     }
                 }
             } catch (e) {
-                console.error('Failed to parse or delete linked lorebooks', e);
+                Logger.error('Failed to parse or delete linked lorebooks', e);
             }
         }
 
@@ -172,7 +173,7 @@ export const characterService = {
         if (char?.avatarPath && char.avatarPath.startsWith('/')) {
             const avatarFilePath = path.join(process.cwd(), 'public', char.avatarPath);
             if (fs.existsSync(avatarFilePath)) {
-                try { fs.unlinkSync(avatarFilePath); } catch (e) { console.error('Failed to delete avatar', e); }
+                try { fs.unlinkSync(avatarFilePath); } catch (e) { Logger.error('Failed to delete avatar', e); }
             }
         }
 
@@ -180,7 +181,7 @@ export const characterService = {
             if (video.filePath) {
                 const videoPath = path.join(process.cwd(), 'public', video.filePath.startsWith('/') ? video.filePath.slice(1) : video.filePath);
                 if (fs.existsSync(videoPath)) {
-                    try { fs.unlinkSync(videoPath); } catch (e) { console.error('Failed to delete video file', e); }
+                    try { fs.unlinkSync(videoPath); } catch (e) { Logger.error('Failed to delete video file', e); }
                 }
             }
         }

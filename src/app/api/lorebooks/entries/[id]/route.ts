@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lorebookService } from '@/services/lorebook-service';
+import { Logger } from '@/lib/logger';
 
 export async function PATCH(
     request: NextRequest,
@@ -13,7 +14,7 @@ export async function PATCH(
         const updatedEntry = await lorebookService.updateEntry(id, body);
         return NextResponse.json(updatedEntry);
     } catch (error) {
-        console.error('Error updating entry:', error);
+        Logger.error('Error updating entry:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -29,7 +30,7 @@ export async function DELETE(
         await lorebookService.deleteEntry(id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting entry:', error);
+        Logger.error('Error deleting entry:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

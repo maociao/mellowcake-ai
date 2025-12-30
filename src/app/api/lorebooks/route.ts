@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lorebookService } from '@/services/lorebook-service';
+import { Logger } from '@/lib/logger';
 
 export async function GET() {
     const lorebooks = await lorebookService.getAll();
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
         const newLorebook = await lorebookService.create(body);
         return NextResponse.json(newLorebook, { status: 201 });
     } catch (error) {
-        console.error('Error creating lorebook:', error);
+        Logger.error('Error creating lorebook:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

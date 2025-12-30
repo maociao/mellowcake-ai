@@ -4,6 +4,7 @@ import { characters, chatMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
+import { Logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
@@ -31,17 +32,17 @@ export async function POST(request: NextRequest) {
                     if (cachePath) {
                         const fullPath = path.join(process.cwd(), 'public', cachePath);
                         if (fs.existsSync(fullPath)) {
-                            console.log(`[TTS API] Serving from cache (index ${swipeIndex}): ${cachePath}`);
+                            Logger.debug(`[TTS API] Serving from cache (index ${swipeIndex}): ${cachePath}`);
                             const fileBuffer = fs.readFileSync(fullPath);
                             return new NextResponse(fileBuffer, {
                                 headers: { 'Content-Type': 'audio/wav' }
                             });
                         } else {
-                            console.log(`[TTS API] Cache file missing at ${fullPath}, regenerating...`);
+                            Logger.warn(`[TTS API] Cache file missing at ${fullPath}, regenerating...`);
                         }
                     }
                 } catch (e) {
-                    console.error('[TTS API] Error parsing audioPaths:', e);
+                    Logger.error('[TTS API] Error parsing audioPaths:', e);
                 }
             }
         }
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!voicePath || !fs.existsSync(voicePath)) {
-            console.log('Voice path not found:', voicePath);
+            Logger.warn('Voice path not found:', voicePath);
             return new NextResponse('Voice sample file missing or not assigned', { status: 404 });
         }
 
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('TTS Service Error:', errorText);
+            Logger.error('TTS Service Error:', errorText);
             throw new Error(`TTS Service failed: ${response.status} ${errorText}`);
         }
 
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
             const diskPath = path.join(AUDIO_CACHE_DIR, filename);
 
             fs.writeFileSync(diskPath, Buffer.from(audioBuffer));
-            console.log(`[TTS API] Cached audio to ${diskPath}`);
+            Logger.debug(`[TTS API] Cached audio to ${diskPath}`);
 
             if (messageId) {
                 // Re-fetch message to ensure no concurrent overwrite issues (though naive JSON update is still race-prone, adequate for single user locally)
@@ -175,10 +176,10 @@ export async function POST(request: NextRequest) {
                 await db.update(chatMessages)
                     .set({ audioPaths: JSON.stringify(paths) })
                     .where(eq(chatMessages.id, messageId));
-                console.log(`[TTS API] Updated message ${messageId} index ${swipeIndex} with audio path`);
+                Logger.info(`[TTS API] Updated message ${messageId} index ${swipeIndex} with audio path`);
             }
         } catch (err) {
-            console.error('[TTS API] Error saving to cache:', err);
+            Logger.error('[TTS API] Error saving to cache:', err);
             // Non-blocking, continue to return audio
         }
         // ---------------------
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Error generating TTS:', error);
+        Logger.error('Error generating TTS:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

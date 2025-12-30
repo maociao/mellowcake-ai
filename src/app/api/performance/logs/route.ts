@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import { Logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
                 try {
                     logs.push(JSON.parse(line));
                 } catch (e) {
-                    console.warn('Failed to parse log line:', line);
+                    Logger.warn('Failed to parse log line', { line });
                 }
             }
         }
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ logs: logs.reverse() });
 
     } catch (error) {
-        console.error('Error reading performance logs:', error);
+        Logger.error('Error reading performance logs:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

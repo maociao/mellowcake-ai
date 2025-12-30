@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import mime from 'mime';
+import { Logger } from '@/lib/logger';
 
 export async function GET(
     request: NextRequest,
@@ -31,7 +32,7 @@ export async function GET(
         });
 
     } catch (error) {
-        console.error('Error serving voice file:', error);
+        Logger.error('Error serving voice file:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

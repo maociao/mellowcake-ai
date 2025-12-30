@@ -5,6 +5,7 @@ import { characterVideos } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { Logger } from '@/lib/logger';
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const id = parseInt((await params).id);
@@ -29,7 +30,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error('Delete video error:', error);
+        Logger.error('Delete video error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -68,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error('Update video error:', error);
+        Logger.error('Update video error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

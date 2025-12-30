@@ -3,6 +3,7 @@ import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schem
 import { llmService } from './llm-service';
 import { characterService } from './character-service';
 import { eq, desc, asc, gte, and } from 'drizzle-orm';
+import { Logger } from '@/lib/logger';
 
 export const chatService = {
     async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[], includeFirstMessage: boolean = true) {
@@ -164,7 +165,7 @@ export const chatService = {
                     }
                 }
             } catch (e) {
-                console.error('Error parsing audioPaths during swipe delete:', e);
+                Logger.error('Error parsing audioPaths during swipe delete:', e);
             }
         }
 

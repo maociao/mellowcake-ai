@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { characterService } from '@/services/character-service';
 import path from 'path';
 import fs from 'fs';
+import { Logger } from '@/lib/logger';
 
 export async function GET(
     request: NextRequest,
@@ -16,7 +17,7 @@ export async function GET(
 
         return NextResponse.json(character);
     } catch (error) {
-        console.error('Error fetching character:', error);
+        Logger.error('Error fetching character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -50,7 +51,7 @@ export async function PUT(
                     fs.unlinkSync(tempPath);
                     body.avatarPath = `/api/avatars/${finalFilename}`;
                 } catch (err) {
-                    console.error('[Character API] Failed to move avatar file:', err);
+                    Logger.error('[Character API] Failed to move avatar file:', err);
                 }
             }
         }
@@ -58,7 +59,7 @@ export async function PUT(
         const updated = await characterService.update(id, body);
         return NextResponse.json(updated);
     } catch (error) {
-        console.error('Error updating character:', error);
+        Logger.error('Error updating character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -77,7 +78,7 @@ export async function DELETE(
         await characterService.delete(id, deleteLorebook);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error('Error deleting character:', error);
+        Logger.error('Error deleting character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -111,7 +112,7 @@ export async function PATCH(
                     fs.unlinkSync(tempPath);
                     body.avatarPath = `/api/avatars/${finalFilename}`;
                 } catch (err) {
-                    console.error('[Character API] Failed to move avatar file:', err);
+                    Logger.error('[Character API] Failed to move avatar file:', err);
                 }
             }
         }
@@ -119,7 +120,7 @@ export async function PATCH(
         const updatedCharacter = await characterService.update(id, body);
         return NextResponse.json(updatedCharacter);
     } catch (error) {
-        console.error('Error updating character:', error);
+        Logger.error('Error updating character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

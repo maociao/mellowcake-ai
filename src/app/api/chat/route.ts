@@ -8,6 +8,7 @@ import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
+import { Logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     let logger: PerformanceLogger | undefined;
@@ -41,12 +42,12 @@ export async function POST(request: NextRequest) {
 
         // 2. Save User Message
         const senderName = persona?.name || 'User';
-        console.log(`[Chat API] Saving user message for session ${sessionId} as ${senderName}`);
+        Logger.debug(`[Chat API] Saving user message for session ${sessionId} as ${senderName}`);
         const [userMsg] = await chatService.addMessage(sessionId, 'user', content, undefined, senderName);
 
         // 3. Get History
         const history = await chatService.getMessages(sessionId);
-        console.log(`[Chat API] Retrieved ${history.length} messages from history`);
+        Logger.debug(`[Chat API] Retrieved ${history.length} messages from history`);
 
         logger.endTimer('preprocessing');
 
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
             ...history.slice(-3).map(m => m.content),
             content
         ].join(' ');
-        console.log(`[Chat API] Searching memories for character ${character.id} with context length: ${memoryContext.length}`);
+        Logger.debug(`[Chat API] Searching memories for character ${character.id} with context length: ${memoryContext.length}`);
 
         // Note: Currently memoryService doesn't return total matches vs dropped. 
         // We log what we get.
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
 
         logger.endTimer('memory_search');
 
-        console.log(`[Chat API] Found ${memories.length} relevant memories`);
+        Logger.debug(`[Chat API] Found ${memories.length} relevant memories`);
 
         // Scan Lorebooks
         logger.startTimer('lore_scan');
@@ -102,15 +103,15 @@ export async function POST(request: NextRequest) {
         if (lorebooks && lorebooks.length > 0) {
             // 1. Get Always Included Entries
             const alwaysIncluded = await lorebookService.getAlwaysIncluded(lorebooks);
-            console.log(`[Chat API] Found ${alwaysIncluded.length} always-included lorebook entries`);
+            Logger.debug(`[Chat API] Found ${alwaysIncluded.length} always-included lorebook entries`);
 
             // 2. Scan for Dynamic Entries (last 3 messages + current message)
             const recentHistory = history.slice(-3).map(m => m.content).join('\n');
             const scanText = `${recentHistory}\n${content}`;
 
-            console.log(`[Chat API] Scanning lorebooks: ${lorebooks.join(', ')} (History depth: 3)`);
+            Logger.debug(`[Chat API] Scanning lorebooks: ${lorebooks.join(', ')} (History depth: 3)`);
             const scannedEntries = await lorebookService.scan(scanText, lorebooks);
-            console.log(`[Chat API] Found ${scannedEntries.length} dynamic lorebook matches`);
+            Logger.debug(`[Chat API] Found ${scannedEntries.length} dynamic lorebook matches`);
 
             // Merge: Always Included first, then Scanned
             lorebookContent = [...alwaysIncluded, ...scannedEntries];
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
         let linkedCharacter = null;
         if (persona && (persona as any).characterId) {
             if ((persona as any).characterId !== character.id) {
-                console.log(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
+                Logger.debug(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
                 linkedCharacter = await characterService.getById((persona as any).characterId);
             }
         }
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
         logger.logMetric('context_usage_summary_chars', breakdown.summary);
         logger.logMetric('context_usage_total_chars', breakdown.total);
 
-        console.log(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
+        Logger.debug(`[Chat API] Built raw prompt (length: ${rawPrompt.length})`);
 
         // 5. Call LLM (Generate)
         let selectedModel = model;
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
             // Prioritize 'stheno' model if available
             selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
         }
-        console.log(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
+        Logger.info(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
 
         // Get model info for context size
         const modelInfo = await llmService.getModelInfo(selectedModel);
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
         const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.95; // Using 4 chars per token as a safer estimate
 
         if (rawPrompt.length > SAFE_CHAR_LIMIT) {
-            console.log(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);
+            Logger.warn(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);
 
             const MESSAGES_TO_SUMMARIZE = 10;
             if (history.length > MESSAGES_TO_SUMMARIZE + 5) { // Ensure we leave at least 5 recent messages
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
                 const summaryText = await chatService.summarizeHistory(sessionId, chunk);
 
                 if (summaryText) {
-                    console.log(`[Chat API] Generated summary: ${summaryText.substring(0, 50)}...`);
+                    Logger.info(`[Chat API] Generated summary: ${summaryText.substring(0, 50)}...`);
 
                     // Append to existing summary
                     const newSummary = (session.summary ? session.summary + "\n\n" : "") + summaryText;
@@ -183,13 +184,13 @@ export async function POST(request: NextRequest) {
                     // Delete summarized messages
                     const idsToDelete = chunk.map(m => m.id);
                     await chatService.deleteMessages(idsToDelete);
-                    console.log(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
+                    Logger.info(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
 
                     // Persist summary to Lorebook if available
                     if (lorebooks && lorebooks.length > 0) {
                         try {
                             // Generate keywords for the summary
-                            console.log('[Chat API] Generating keywords for summary...');
+                            Logger.debug('[Chat API] Generating keywords for summary...');
                             const keywordPrompt = `Extract 3-5 comma-separated keywords for this summary: "${summaryText}"`;
                             const keywordRes = await llmService.chat(selectedModel, [{ role: 'user', content: keywordPrompt }]);
                             const keywords = keywordRes ? keywordRes.split(',').map((k: string) => k.trim()) : ['summary'];
@@ -202,7 +203,7 @@ export async function POST(request: NextRequest) {
                             for (const bookName of lorebooks) {
                                 const targetBook = allLorebooks.find(b => b.name === bookName);
                                 if (targetBook) {
-                                    console.log(`[Chat API] Persisting summary to lorebook: ${targetBook.name}`);
+                                    Logger.info(`[Chat API] Persisting summary to lorebook: ${targetBook.name}`);
                                     await lorebookService.addEntry(targetBook.id, {
                                         content: summaryText,
                                         keywords: keywordJson,
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
                                 }
                             }
                         } catch (err) {
-                            console.error('[Chat API] Failed to persist summary to lorebook:', err);
+                            Logger.error('[Chat API] Failed to persist summary to lorebook:', err);
                         }
                     }
                 }
@@ -231,10 +232,10 @@ export async function POST(request: NextRequest) {
         let effectiveOptions = { ...options };
         if ((session as any).responseStyle === 'short' && (session as any).shortTemperature != null) {
             effectiveOptions.temperature = (session as any).shortTemperature;
-            console.log(`[Chat API] Using Short form temperature override: ${effectiveOptions.temperature}`);
+            Logger.debug(`[Chat API] Using Short form temperature override: ${effectiveOptions.temperature}`);
         } else if ((session as any).responseStyle === 'long' && (session as any).longTemperature != null) {
             effectiveOptions.temperature = (session as any).longTemperature;
-            console.log(`[Chat API] Using Long form temperature override: ${effectiveOptions.temperature}`);
+            Logger.debug(`[Chat API] Using Long form temperature override: ${effectiveOptions.temperature}`);
         }
 
         logger.startTimer('llm_generation');
@@ -243,7 +244,8 @@ export async function POST(request: NextRequest) {
             ...effectiveOptions
         });
         logger.endTimer('llm_generation');
-        console.log(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
+        Logger.llm('generate', { prompt: rawPrompt, response: responseContent, model: selectedModel });
+        Logger.debug(`[Chat API] Received response from LLM: ${responseContent.substring(0, 50)}...`);
 
         logger.startTimer('postprocessing');
         // Strip character name prefix if present (e.g. "CharacterName: Hello")
@@ -259,18 +261,18 @@ export async function POST(request: NextRequest) {
 
         // 6. Save Assistant Message with Prompt
         const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);
-        console.log(`[Chat API] Saved assistant message ${assistantMsg.id}`);
+        Logger.debug(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
         // 7. Generate new memory (async, don't block response)
         // Only generate memory every 2 turns (every 2nd user message)
         const userMsgCount = history.filter(m => m.role === 'user').length;
         if (userMsgCount > 0 && userMsgCount % 2 === 0) {
-            console.log(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
+            Logger.debug(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
             const currentPersonaName = persona?.name || 'User';
             memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
-                .catch(err => console.error('Memory generation failed:', err));
+                .catch(err => Logger.error('Memory generation failed:', err));
         } else {
-            console.log(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
+            Logger.debug(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
         }
         logger.endTimer('postprocessing');
 
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ userMessage: userMsg, assistantMessage: assistantMsg });
 
     } catch (error) {
-        console.error('[Chat API] Error in chat endpoint:', error);
+        Logger.error('[Chat API] Error in chat endpoint:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

@@ -8,6 +8,7 @@ import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
+import { Logger } from '@/lib/logger';
 
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
@@ -66,13 +67,13 @@ export async function POST(request: NextRequest) {
         const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
         const content = lastUserMsg ? lastUserMsg.content : '';
 
-        console.log(`[Regenerate API] Regenerating message ${messageId}. Context history length: ${history.length}`);
+        Logger.info(`[Regenerate API] Regenerating message ${messageId}. Context history length: ${history.length}`);
 
         logger.endTimer('preprocessing');
         logger.startTimer('memory_search');
 
         // 4. Build Context (Same logic as chat route)
-        console.log(`[Regenerate API] Searching memories for character ${character.id} with query: "${content}"`);
+        Logger.debug(`[Regenerate API] Searching memories for character ${character.id} with query: "${content}"`);
         // Note: Currently memoryService returns { memories, totalFound }
         const { memories, totalFound } = await memoryService.searchMemories(character.id, content);
 
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
         let linkedCharacter = null;
         if (persona && (persona as any).characterId) {
             if ((persona as any).characterId !== character.id) {
-                console.log(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
+                Logger.debug(`[Regenerate API] Fetching linked character ${(persona as any).characterId}`);
                 linkedCharacter = await characterService.getById((persona as any).characterId);
             }
         }
@@ -180,13 +181,14 @@ export async function POST(request: NextRequest) {
             effectiveOptions.temperature = (session as any).longTemperature;
         }
 
-        console.log(`[Regenerate API] Calling LLM generate with model: ${selectedModel}, Temp: ${effectiveOptions.temperature}`);
+        Logger.info(`[Regenerate API] Calling LLM generate with model: ${selectedModel}, Temp: ${effectiveOptions.temperature}`);
         logger.startTimer('llm_generation');
         let responseContent = await llmService.generate(selectedModel, rawPrompt, {
             stop: ['<|eot_id|>', `${persona?.name || 'User'}:`],
             ...effectiveOptions
         });
         logger.endTimer('llm_generation');
+        Logger.llm('regenerate', { prompt: rawPrompt, response: responseContent, model: selectedModel });
 
         logger.startTimer('postprocessing');
         // Strip character name prefix
@@ -201,7 +203,7 @@ export async function POST(request: NextRequest) {
         responseContent = trimResponse(responseContent, trimLength || 800);
 
         // 6. Add as Swipe
-        console.log(`[Regenerate API] Adding swipe to message ${messageId}`);
+        Logger.debug(`[Regenerate API] Adding swipe to message ${messageId}`);
         const updatedMessages = await chatService.addSwipe(messageId, responseContent, promptUsed);
 
         if (!updatedMessages) {
@@ -216,7 +218,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(updatedMessage);
 
     } catch (error) {
-        console.error('[Regenerate API] Error:', error);
+        Logger.error('[Regenerate API] Error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

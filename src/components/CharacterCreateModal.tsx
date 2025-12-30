@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AvatarPicker } from './AvatarPicker';
+import { Logger } from '@/lib/logger';
 
 interface CharacterCreateModalProps {
     isOpen: boolean;
@@ -54,7 +55,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                 alert('Failed to create character');
             }
         } catch (error) {
-            console.error(error);
+            Logger.error('Create character error:', error);
             alert('Error creating character');
         } finally {
             setLoading(false);

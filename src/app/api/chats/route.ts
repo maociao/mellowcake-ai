@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatService } from '@/services/chat-service';
 import { characterService } from '@/services/character-service';
+import { Logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
         const sessions = await chatService.getSessionsByCharacterId(parseInt(characterId));
         return NextResponse.json(sessions);
     } catch (error) {
-        console.error('Error fetching sessions:', error);
+        Logger.error('Error fetching sessions:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -36,14 +37,14 @@ export async function POST(request: NextRequest) {
             try {
                 defaultLorebooks = JSON.parse(character.lorebooks);
             } catch (e) {
-                console.error('Error parsing character default lorebooks:', e);
+                Logger.error('Error parsing character default lorebooks:', e);
             }
         }
 
         const session = await chatService.createSession(characterId, personaId, name, defaultLorebooks);
         return NextResponse.json(session[0], { status: 201 });
     } catch (error) {
-        console.error('Error creating session:', error);
+        Logger.error('Error creating session:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

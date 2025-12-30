@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatService } from '@/services/chat-service';
+import { Logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         return NextResponse.json(updatedMessage);
     } catch (error) {
-        console.error('[Swipe API] Error:', error);
+        Logger.error('[Swipe API] Error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -45,7 +46,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error('[Swipe API] Error deleting swipe:', error);
+        Logger.error('[Swipe API] Error deleting swipe:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

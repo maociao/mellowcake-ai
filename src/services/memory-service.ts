@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { memories } from '@/lib/db/schema';
 import { eq, like, or, desc } from 'drizzle-orm';
 import { llmService } from './llm-service';
+import { Logger } from '@/lib/logger';
 
 export const memoryService = {
     async createMemory(characterId: number, content: string, keywords: string[] = []) {
@@ -115,9 +116,7 @@ Memory:`;
         const models = await llmService.getModels();
         const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
 
-        console.log('[Memory Service] Generating memory with model:', model);
-        console.log('[Memory Service] Temperature: 0.7');
-        console.log('[Memory Service] Prompt:\n', prompt);
+        Logger.llm('memory-gen', { prompt, model, temperature: 0.7 });
 
         const response = await llmService.chat(model, [{ role: 'user', content: prompt }], { temperature: 0.7 });
 
