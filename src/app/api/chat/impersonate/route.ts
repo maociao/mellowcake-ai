@@ -231,6 +231,7 @@ export async function POST(request: NextRequest) {
 
         // Trim response
         cleaned = trimResponse(cleaned, trimLength || 800);
+        Logger.debug(`[Impersonate API] Trimmed response: ${cleaned}`);
         logger.endTimer('postprocessing');
 
         logger.endTimer('total');

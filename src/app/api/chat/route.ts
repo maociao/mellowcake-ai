@@ -258,6 +258,7 @@ export async function POST(request: NextRequest) {
 
         // Trim response to 800 chars / complete sentence
         responseContent = trimResponse(responseContent, trimLength || 800);
+        Logger.debug(`[Chat API] Trimmed response: ${responseContent}`);
 
         // 6. Save Assistant Message with Prompt
         const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);

@@ -201,6 +201,7 @@ export async function POST(request: NextRequest) {
 
         // Trim response
         responseContent = trimResponse(responseContent, trimLength || 800);
+        Logger.debug(`[Regenerate API] Trimmed response: ${responseContent}`);
 
         // 6. Add as Swipe
         Logger.debug(`[Regenerate API] Adding swipe to message ${messageId}`);

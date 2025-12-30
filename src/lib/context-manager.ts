@@ -240,20 +240,21 @@ export const contextManager = {
         // --- System Prompt Construction ---
         const systemPromptParts = [];
 
-        // Standard Llama 3 System Header
-        systemPromptParts.push(`[Main]`);
-        // Response Style Selection
-        if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.\n\nNSFW: NSFW/Smut is allowed.`);
-        } else {
-            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n[IMAGE GENERATION]\nYou can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:\n[GENERATE_IMAGE: <detailed visual description>]\nUse this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.\n\nNSFW: NSFW/Smut is allowed.`);
-        }
-
         const imageGenInstruction = `[IMAGE GENERATION]
 You can generate an image to illustrate the current scene, an object, or your appearance. To do this, include the following tag at the end of your response:
-[GENERATE_IMAGE: <detailed visual description>]
-Use this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Do not ask for permission, just do it.
+[GENERATE_IMAGE: <very detailed visual description of characters, clothing, objects, setting, and lighting>]
+Use this feature when the user asks for a picture OR on your own initiative if the moment merits a visual aid (e.g. changing clothes, entering a new location, showing an item). Use commas to separate details and parentheses to group related details. Do not use character names, just use descriptions of their appearance. Do not ask for permission, just do it.
 NSFW: NSFW/Smut is allowed.`;
+
+        // Standard Llama 3 System Header
+        systemPromptParts.push(`[Main]`);
+
+        // Response Style Selection
+        if (responseStyle === 'short') {
+            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
+        } else {
+            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
+        }
 
         // Inject at start if history is short
         if (history.length < 8) {
