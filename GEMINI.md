@@ -1,32 +1,78 @@
-# Development Rules
+# Mellowcake AI - Project Context & Rules
 
-## Logging
-- ALWAYS use the `Logger` class from `@/lib/logger` for all server-side logging.
-- DO NOT use `console.log`, `console.error`, or `console.warn` in server-side code (API routes, services, etc.).
-- Client-side code should also use `Logger` where possible, or be minimal with `console` usage if `Logger` is not appropriate.
-- Use `Logger.info()`, `Logger.error()`, `Logger.warn()`, `Logger.debug()`.
-- For LLM prompts/responses, use `Logger.llm()`.
-- For ComfyUI workflows, use `Logger.comfy()`.
+## Project Overview
+Mellowcake AI is a sophisticated AI character chat application built as a Progressive Web App (PWA). It integrates:
+- **LLM**: Ollama for character roleplay.
+- **Memory**: Vector-enhanced persistent memory using SQLite.
+- **Voice**: F5-TTS for high-quality speech synthesis (configured for AMD ROCm, adaptable for others).
+- **Visuals**: ComfyUI for generating character images and videos dynamically.
+- **World Building**: A Lorebook system for context-aware injections.
 
-## Database Schema
+## Technology Stack
+- **Framework**: Next.js 16 (App Router)
+- **Library**: React 19
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Database**: SQLite (via `better-sqlite3`)
+- **ORM**: Drizzle ORM
+- **State Management**: Zustand
+- **PWA**: @ducanh2912/next-pwa
 
-**Technology Stack**: SQLite with Drizzle ORM.
-**Database File**: `mellowcake.db` (root directory).
-**Schema Definition**: `src/lib/db/schema.ts`.
+## Project Structure
+- `src/app`: Next.js App Router pages and API routes.
+- `src/components`: React UI components.
+- `src/lib`: Core logic, database configuration, authentication, and utilities.
+  - `src/lib/db/schema.ts`: **Source of Truth for Database Schema.**
+  - `src/lib/logger.ts`: **Source of Truth for Logging.**
+- `src/services`: Client-side service layers for API interaction.
+- `drizzle/`: Database migration files.
+- `tts_service/`: Python-based F5-TTS server.
 
-### Tables
-- **`voices`**: TTS voice definitions (`id`, `name`, `file_path`, `transcript`).
-- **`characters`**: Character entities (`id`, `name`, `description`, `appearance`, `personality`, `voice_id` FK).
-- **`personas`**: User personas (`id`, `name`, `character_id` FK).
-- **`chat_sessions`**: Chat containers (`id`, `character_id` FK, `persona_id` FK, `summary`).
-- **`chat_messages`**: Chat history (`session_id` FK, `role`, `content`, `swipes`, `audio_paths`).
-    *   `session_id` has `ON DELETE CASCADE`.
-- **`memories`**: Long-term character memory (`character_id` FK, `content`).
-- **`lorebooks`**: World info definitions (`id`, `name`, `description`).
-- **`lorebook_entries`**: Specific lore entries (`lorebook_id` FK, `content`, `keywords`).
-- **`character_videos`**: Associated videos (`character_id` FK, `file_path`).
-- **`settings`**: Key-value store (`key`, `value`).
+## Development Rules
 
-### Migrations
-- Run `npx drizzle-kit migrate` to apply changes from `drizzle/` folder.
-- Run `npx drizzle-kit push` to push schema changes directly (dev only).
+### 1. Logging
+**Strictly Enforced**: High-quality logging is essential for debugging this multi-service architecture.
+- **Server-Side**: NEVER use `console.log`, `console.error`, or `console.warn`.
+  - **ALWAYS** use the `Logger` class from `@/lib/logger`.
+  - usage: `Logger.info('Context', 'Message', { metadata })`
+- **Client-Side**: Use `Logger` where possible. Minimal `console` usage is permitted only for temporary debugging but should be cleaned up.
+- **Specialized Methods**:
+  - `Logger.llm()`: For all input/output to Ollama.
+  - `Logger.comfy()`: For ComfyUI workflow events.
+  - `Logger.db()`: For critical database operations.
+
+### 2. Database & Schema
+- **ORM**: Drizzle ORM is used for all database interactions.
+- **Schema File**: `src/lib/db/schema.ts` defines the structure.
+- **Changes**:
+  1. Modify `src/lib/db/schema.ts`.
+  2. Run `npx drizzle-kit migrate` or `npx drizzle-kit push` (for dev prototyping).
+- **Core Tables**:
+  - `characters`, `personas`, `chat_sessions`, `chat_messages` (Chat Loop)
+  - `voices` (TTS)
+  - `lorebooks`, `lorebook_entries` (World Info)
+  - `memories` (Long-term storage)
+
+### 3. Coding Standards
+- **Components**:
+  - Default to **Server Components**.
+  - Use `"use client"` only when interactivity (hooks, event listeners) is required.
+- **Styling**:
+  - Use **Tailwind CSS v4** classes. Avoid custom CSS files unless absolutely necessary for complex animations.
+- **State**:
+  - Use **Zustand** for global client-side state (e.g., settings, active UI states).
+- **Type Safety**:
+  - Strict TypeScript usage. Avoid `any`. Define interfaces for all component props and API responses.
+
+### 4. Application Architecture
+- **Chat Loop**: The core loop involves fetching chat history -> assembling context (System Prompt + Lore + Memory) -> sending to Ollama -> streaming response -> generating TTS/Images in background (optional).
+- **Service Isolation**: The Next.js app acts as the orchestrator.
+  - **Ollama**: External service.
+  - **F5-TTS**: External Python service (port 8000).
+  - **ComfyUI**: External service (port 8188).
+  - Code interacting with these services must handle timeouts and connection failures gracefully.
+
+### 5. File & Directory naming
+- **React Components**: PascalCase (e.g., `ChatWindow.tsx`).
+- **Utilities/Functions**: camelCase (e.g., `formatDate.ts`).
+- **Directories**: kebab-case (e.g., `src/components/chat-ui`).
