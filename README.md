@@ -28,7 +28,7 @@ Before setting up, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/mellowcake-ai.git
+git clone https://github.com/maociao/mellowcake-ai.git
 cd mellowcake-ai
 ```
 
@@ -38,24 +38,17 @@ Install Node.js dependencies:
 
 ```bash
 npm install
-# or
-yarn install
-# or
-pnpm install
 ```
 
 ### 3. Environment Configuration
 
-Create a `.env.local` file in the root directory and configure the following variables:
+Rename `env.example` file to `.env.local` file in the root directory and configure the following variables (only required if you plan to expose the app to the public using Cloudflare Tunnel):
 
 ```bash
 # Authentication
 AUTH_SECRET="your-secure-random-secret-key" # Used for signing JWTs
 BASIC_AUTH_USER="admin"                     # Admin username
-BASIC_AUTH_PASS="password"                  # Admin password
-
-# Database
-DATABASE_URL="file:./mellowcake.db"         # Default SQLite path
+BASIC_AUTH_PASS="password"                  # Admin password        # Default SQLite path
 ```
 
 ### 4. Database Setup
