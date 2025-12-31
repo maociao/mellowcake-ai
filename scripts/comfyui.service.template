@@ -1,0 +1,15 @@
+[Unit]
+Description=ComfyUI AI Image Generation
+After=network.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%COMFYUI_ROOT%
+# Assuming standard python3 usage or venv path provided as EXEC
+ExecStart=%PYTHON_EXEC% main.py --listen
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

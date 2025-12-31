@@ -1,0 +1,16 @@
+[Unit]
+Description=Mellowcake AI Next.js Application
+After=network.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PROJECT_ROOT%
+ExecStart=%NODE_EXEC% %NPM_EXEC% start
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment="PATH=%NODE_BIN_DIR%:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=F5-TTS Service
+After=network.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PROJECT_ROOT%/tts_service
+ExecStart=/bin/bash %PROJECT_ROOT%/tts_service/start.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
