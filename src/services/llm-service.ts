@@ -9,6 +9,7 @@ export interface LLMParams {
     num_predict?: number;
     num_ctx?: number;
     stop?: string[];
+    format?: string;
 }
 
 export interface ChatMessage {
@@ -53,6 +54,7 @@ export const llmService = {
                     model,
                     messages,
                     stream: false, // For now, no streaming to simplify logic
+                    format: params.format,
                     options: {
                         temperature: params.temperature,
                         top_p: params.top_p,
@@ -84,6 +86,7 @@ export const llmService = {
                     model,
                     prompt,
                     stream: false,
+                    format: params.format,
                     options: {
                         temperature: params.temperature,
                         top_p: params.top_p,

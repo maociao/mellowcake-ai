@@ -265,9 +265,9 @@ export async function POST(request: NextRequest) {
         Logger.debug(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
         // 7. Generate new memory (async, don't block response)
-        // Only generate memory every 2 turns (every 2nd user message)
+        // Only generate memory every 5 turns (every 5th user message)
         const userMsgCount = history.filter(m => m.role === 'user').length;
-        if (userMsgCount > 0 && userMsgCount % 2 === 0) {
+        if (userMsgCount > 0 && userMsgCount % 3 === 0) {
             Logger.debug(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
             const currentPersonaName = persona?.name || 'User';
             memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
