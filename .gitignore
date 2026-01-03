@@ -67,4 +67,5 @@ public/imagen-cache/*
 public/videos/*
 public/characters/*
 public/personas/*
-public/temp/*scripts/*.service
+public/temp/*
+scripts/*.service
