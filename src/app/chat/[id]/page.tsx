@@ -110,6 +110,9 @@ export default function ChatPage() {
     const [editAvatarPath, setEditAvatarPath] = useState<string | null>(null);
     const [editAppearance, setEditAppearance] = useState('');
     const [editPersonality, setEditPersonality] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editScenario, setEditScenario] = useState('');
+    const [editFirstMessage, setEditFirstMessage] = useState('');
     const [showPersonaEdit, setShowPersonaEdit] = useState<Persona | 'new' | null>(null);
     const [showLorebookManage, setShowLorebookManage] = useState(false);
     const [editingLorebook, setEditingLorebook] = useState<Lorebook | 'new' | null>(null);
@@ -138,6 +141,66 @@ export default function ChatPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const touchStartRef = useRef<number | null>(null);
     const touchEndRef = useRef<number | null>(null);
+
+    // Trait Generation State
+    const [generatingTrait, setGeneratingTrait] = useState<string | null>(null);
+
+    const GenerateButton = ({ trait }: { trait: string }) => (
+        <button
+            type="button"
+            onClick={() => handleGenerateTrait(trait)}
+            disabled={!!generatingTrait}
+            className={`p-1 rounded transition-colors ${generatingTrait === trait ? 'text-gray-500 cursor-not-allowed' : 'text-purple-400 hover:text-purple-300 hover:bg-purple-900/20'}`}
+            title="Generate from Memories"
+        >
+            {generatingTrait === trait ? (
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                </svg>
+            )}
+        </button>
+    );
+
+    const handleGenerateTrait = async (trait: string) => {
+        if (!character) return;
+        setGeneratingTrait(trait);
+        try {
+            const res = await fetch('/api/characters/generate-trait', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    characterId: character.id,
+                    trait,
+                    currentAttributes: {
+                        appearance: editAppearance,
+                        personality: editPersonality,
+                        description: character.description,
+                        scenario: character.scenario
+                    }
+                })
+            });
+            const data = await res.json();
+            if (data.result) {
+                if (trait === 'appearance') setEditAppearance(data.result);
+                if (trait === 'personality') setEditPersonality(data.result);
+                if (trait === 'description') setEditDescription(data.result);
+                if (trait === 'scenario') setEditScenario(data.result);
+                if (trait === 'firstMessage') setEditFirstMessage(data.result);
+            } else if (data.error) {
+                alert('Generation failed: ' + data.error);
+            }
+        } catch (e) {
+            Logger.error('Trait generation error', e);
+            alert('Error generating trait');
+        } finally {
+            setGeneratingTrait(null);
+        }
+    };
 
     const deleteLorebook = async (id: number) => {
         if (!confirm('Are you sure you want to delete this lorebook? All entries will also be deleted.')) return;
@@ -1550,6 +1613,9 @@ export default function ChatPage() {
             setEditAvatarPath(character.avatarPath);
             setEditAppearance(character.appearance || '');
             setEditPersonality(character.personality || '');
+            setEditDescription(character.description || '');
+            setEditScenario(character.scenario || '');
+            setEditFirstMessage(character.firstMessage || '');
         }
     }, [showCharEdit, character]);
 
@@ -1662,8 +1728,13 @@ export default function ChatPage() {
                                     <label className="block text-sm font-medium text-gray-400">Name <span className="text-red-500">*</span></label>
                                     <input name="name" required defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
+
+                                {/* Appearance */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Appearance (Age, gender, features)</label>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-sm font-medium text-gray-400">Appearance</label>
+                                        <GenerateButton trait="appearance" />
+                                    </div>
                                     <input
                                         name="appearance"
                                         value={editAppearance}
@@ -1672,8 +1743,13 @@ export default function ChatPage() {
                                         placeholder="e.g. Tall, blue eyes..."
                                     />
                                 </div>
+
+                                {/* Personality */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Personality</label>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-sm font-medium text-gray-400">Personality</label>
+                                        <GenerateButton trait="personality" />
+                                    </div>
                                     <textarea
                                         name="personality"
                                         value={editPersonality}
@@ -1682,17 +1758,50 @@ export default function ChatPage() {
                                         className="w-full bg-gray-700 rounded p-2 text-white"
                                     />
                                 </div>
+
+                                {/* Background Story */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Background Story</label>
-                                    <textarea name="description" defaultValue={character.description} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-sm font-medium text-gray-400">Background Story</label>
+                                        <GenerateButton trait="description" />
+                                    </div>
+                                    <textarea
+                                        name="description"
+                                        value={editDescription}
+                                        onChange={(e) => setEditDescription(e.target.value)}
+                                        rows={3}
+                                        className="w-full bg-gray-700 rounded p-2 text-white"
+                                    />
                                 </div>
+
+                                {/* Scenario */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Scenario</label>
-                                    <textarea name="scenario" defaultValue={character.scenario} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-sm font-medium text-gray-400">Scenario</label>
+                                        <GenerateButton trait="scenario" />
+                                    </div>
+                                    <textarea
+                                        name="scenario"
+                                        value={editScenario}
+                                        onChange={(e) => setEditScenario(e.target.value)}
+                                        rows={3}
+                                        className="w-full bg-gray-700 rounded p-2 text-white"
+                                    />
                                 </div>
+
+                                {/* First Message */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">First Message</label>
-                                    <textarea name="firstMessage" defaultValue={character.firstMessage} rows={4} className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm" />
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-sm font-medium text-gray-400">First Message</label>
+                                        <GenerateButton trait="firstMessage" />
+                                    </div>
+                                    <textarea
+                                        name="firstMessage"
+                                        value={editFirstMessage}
+                                        onChange={(e) => setEditFirstMessage(e.target.value)}
+                                        rows={4}
+                                        className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm"
+                                    />
                                 </div>
 
                                 {/* Default Lorebooks */}
