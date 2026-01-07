@@ -94,3 +94,22 @@ export function trimResponse(text: string, maxLength: number = 800): string {
 
     return trimmed.trimEnd();
 }
+
+/**
+ * Strips image generation commands and markdown image links from the text.
+ * @param text The text to process
+ * @returns The text with image commands removed
+ */
+export function stripImageCommands(text: string): string {
+    if (!text) return text;
+    // Remove [GENERATE_IMAGE: ...] tags
+    let cleanText = text.replace(/\[GENERATE_IMAGE:\s*[^\]]+\]/g, '');
+
+    // Remove markdown images like ![alt](url)
+    cleanText = cleanText.replace(/!\[.*?\]\(.*?\)/g, '');
+
+    // Clean up any double spaces created by removals
+    cleanText = cleanText.replace(/\s+/g, ' ').trim();
+
+    return cleanText;
+}

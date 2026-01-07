@@ -9,6 +9,7 @@ import { VoiceBankModal } from '@/components/VoiceBankModal';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSettingsStore } from '@/lib/store/settings-store';
 import { Logger } from '@/lib/logger';
+import { stripImageCommands } from '@/lib/text-utils';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -1305,10 +1306,14 @@ export default function ChatPage() {
         if (messageId) setAudioGeneratingId(messageId);
 
         try {
+            Logger.debug(`[playTTS] Generating/Playing for message ${messageId}. Original length: ${text.length}`);
+            const cleanText = stripImageCommands(text);
+            Logger.debug(`[playTTS] Stripped text for TTS: "${cleanText.substring(0, 50)}..."`);
+
             const res = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, characterId: character.id, messageId, swipeIndex, regenerate })
+                body: JSON.stringify({ text: cleanText, characterId: character.id, messageId, swipeIndex, regenerate })
             });
 
             if (res.ok) {

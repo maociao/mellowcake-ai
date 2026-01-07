@@ -121,7 +121,7 @@ export const contextManager = {
         // Inverted Role: You are {{user}}. Reply as {{user}} only.
         systemPromptParts.push(`[Main]`);
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Responses should be short and concise. Use markdown.`);
+            systemPromptParts.push(`You are ${userName}. Reply as ${userName} only. You are talking to ${charName}. Respond with 2 or 3 sentences. Use emojis to express emotion.`);
             systemPromptParts.push(`Past events and memories of the ${charName} are provided below. Use them to inform your responses.`);
             systemPromptParts.push(`NSFW: NSFW/Smut is allowed.`);
         } else {
@@ -251,7 +251,7 @@ NSFW: NSFW/Smut is allowed.`;
 
         // Response Style Selection
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
+            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Respond with 2 or 3 sentences. Use emojis to express emotion. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
         } else {
             systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
         }
