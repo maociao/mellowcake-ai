@@ -2032,7 +2032,11 @@ export default function ChatPage() {
                         <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-xl font-bold">Manage Memory Books</h2>
-                                <button onClick={() => setShowLorebookManage(false)} className="text-gray-400 hover:text-white">Close</button>
+                                <button onClick={() => {
+                                    setShowLorebookManage(false);
+                                    setEditingLorebook(null);
+                                    setEditingEntry(null);
+                                }} className="text-gray-400 hover:text-white">Close</button>
                             </div>
 
                             {!editingLorebook ? (
@@ -2057,7 +2061,10 @@ export default function ChatPage() {
                                 <div className="flex flex-col h-full">
                                     <div className="flex justify-between items-center mb-4">
                                         <h3 className="text-lg font-semibold">{typeof editingLorebook === 'string' ? 'New Book' : editingLorebook.name}</h3>
-                                        <button onClick={() => setEditingLorebook(null)} className="text-gray-400 hover:text-white">Back to List</button>
+                                        <button onClick={() => {
+                                            setEditingLorebook(null);
+                                            setEditingEntry(null);
+                                        }} className="text-gray-400 hover:text-white">Back to List</button>
                                     </div>
 
                                     <form onSubmit={saveLorebook} className="space-y-4 mb-6 border-b border-gray-700 pb-6">
