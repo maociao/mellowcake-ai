@@ -1409,42 +1409,46 @@ export default function ChatPage() {
         });
     }, [messages]);
 
+    const getEnhancedPrompt = (description: string) => {
+        let finalPrompt = description;
+        const enhancements: string[] = [];
+
+        if (character && description.toLowerCase().includes(character.name.toLowerCase().split(' ')[0])) {
+            // Default Character Logic (only if name mentioned)
+            enhancements.push('(' + character.name + ' is a ' + character.appearance + ')');
+        }
+
+        const currentPersona = personas.find(p => p.id === selectedPersonaId);
+
+        if (currentPersona && description.toLowerCase().includes(currentPersona.name.toLowerCase().split(' ')[0])) {
+            if (currentPersona.characterId) {
+                // Use Linked Character
+                const linkedCharacter = allCharacters.find(c => c.id === currentPersona.characterId);
+                if (linkedCharacter) {
+                    enhancements.push('(' + linkedCharacter.name + ' is a ' + linkedCharacter.appearance + ')');
+                } else {
+                    // Fallback if linked character not found? Or just use persona
+                    enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
+                }
+            } else {
+                // No Linked Character - Use Persona
+                enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
+            }
+        }
+
+        if (enhancements.length > 0) {
+            finalPrompt = `${enhancements.join(', ')}, (${description})`;
+        }
+        return finalPrompt;
+    };
+
     const generateImageForMessage = async (messageId: number, description: string, tag: string) => {
         try {
             Logger.info(`Triggering auto-image generation for message ${messageId}: ${description}`);
 
-            // Enhance prompt if character name is present
-            // Enhance prompt if character or persona details are present
-            let finalPrompt = description;
-            const enhancements: string[] = [];
-
-            if (character && description.toLowerCase().includes(character.name.toLowerCase())) {
-                // Default Character Logic (only if name mentioned)
-                enhancements.push('(' + character.name + ' is a ' + character.appearance + ' who is ' + character.personality + ')');
-            }
-
-            const currentPersona = personas.find(p => p.id === selectedPersonaId);
-
-            if (currentPersona && description.toLowerCase().includes(currentPersona.name.toLowerCase().split(' ')[0])) {
-                if (currentPersona.characterId) {
-                    // Use Linked Character
-                    const linkedCharacter = allCharacters.find(c => c.id === currentPersona.characterId);
-                    if (linkedCharacter) {
-                        enhancements.push('(' + linkedCharacter.name + ' is a ' + linkedCharacter.appearance + ' who is ' + linkedCharacter.personality + ')');
-                    } else {
-                        // Fallback if linked character not found? Or just use persona
-                        enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
-                    }
-                } else {
-                    // No Linked Character - Use Persona
-                    enhancements.push('(' + currentPersona.name + ' is a ' + currentPersona.description + ')');
-                }
-            }
-
-            if (enhancements.length > 0) {
-                finalPrompt = `${enhancements.join(', ')}, (${description})`;
-                Logger.debug(`Enhanced prompt with character details: ${finalPrompt}`);
-            }
+            // Enhance prompt
+            const finalPrompt = getEnhancedPrompt(description);
+            Logger.debug(`Enhanced prompt with character details: ${finalPrompt}`);
 
             // 1. Call Generate API
             const res = await fetch('/api/images/generate', {
@@ -1513,8 +1517,78 @@ export default function ChatPage() {
         }
     };
 
+
+    const triggerImageRegeneration = async (messageId: number, prompt: string, oldUrl: string) => {
+        if (processingImages.current.has(messageId)) return;
+        processingImages.current.add(messageId);
+
+        // Force update UI to show spinner? 
+        // We can use a temporary state or just rely on processingImages ref + forceUpdate or wait for poll
+        // But processingImages is a Ref, doesn't trigger render.
+        // Let's rely on the image placeholder replacement?
+        // Actually, we want to replace the current image with a spinner or overlay.
+        // But we can't easily modify the content string to a spinner tag easily without potentially messing up.
+        // Strategy: Just start generation. The UI buttons can show "Generating..." based on state.
+        // I'll add a state `generatingImages` Map<string, boolean> (key: msgId-imgUrl) to track specific image gen?
+        // Or just use `processingImages` set (msgId).
+
+        try {
+            Logger.info(`Regenerating image for message ${messageId}`);
+            const res = await fetch('/api/images/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: prompt, type: 'message' })
+            });
+
+            if (!res.ok) throw new Error('Failed to request generation');
+            const { promptId } = await res.json();
+
+            // Poll
+            const poll = setInterval(async () => {
+                try {
+                    const statusRes = await fetch(`/api/images/status?promptId=${promptId}`);
+                    const statusData = await statusRes.json();
+
+                    if (statusData.status === 'completed' && statusData.imagePath) {
+                        clearInterval(poll);
+
+                        setMessages(prev => {
+                            const m = prev.find(pm => pm.id === messageId);
+                            if (!m) return prev;
+
+                            // Replace the specific image URL in content
+                            // We use the oldUrl to find and replace.
+                            const newContent = m.content.replace(oldUrl, statusData.imagePath);
+
+                            // Update DB
+                            fetch(`/api/messages/${messageId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ content: newContent })
+                            }).catch(e => Logger.error('Failed to save regenerated image', e));
+
+                            return prev.map(pm => pm.id === messageId ? { ...pm, content: newContent } : pm);
+                        });
+                        processingImages.current.delete(messageId);
+                    } else if (statusData.status === 'failed') {
+                        clearInterval(poll);
+                        processingImages.current.delete(messageId);
+                        alert('Image generation failed.');
+                    }
+                } catch (e) {
+                    clearInterval(poll);
+                    processingImages.current.delete(messageId);
+                }
+            }, 3000);
+
+        } catch (e) {
+            Logger.error('Regeneration error', e);
+            processingImages.current.delete(messageId);
+        }
+    };
+
     // Helper to format message content (italics for *text*, images, and generation tags)
-    const formatMessage = (content: string) => {
+    const formatMessage = (content: string, msg?: Message) => {
         // Replace variables
         let formatted = content;
         if (character) {
@@ -1538,29 +1612,56 @@ export default function ChatPage() {
 
         const parts = formatted.split(regex).filter(p => p !== undefined && p !== '');
 
-        // Using split with capturing groups includes the captures in the array. 
-        // However, with multiple groups, it might be messy. 
-        // Let's use a simpler sequential find-and-replace approach using React nodes array.
-
         let nodes: React.ReactNode[] = [formatted];
 
         // 1. Handle Images
         const processImages = (nodeList: React.ReactNode[]) => {
+            let imgCount = 0;
             return nodeList.flatMap(node => {
                 if (typeof node !== 'string') return node;
                 const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
                 const parts = node.split(imgRegex);
                 if (parts.length === 1) return node;
 
-                const result = [];
+                const result: React.ReactNode[] = [];
                 for (let i = 0; i < parts.length; i += 3) {
                     result.push(parts[i]);
                     if (i + 1 < parts.length) {
                         const alt = parts[i + 1];
                         const src = parts[i + 2];
+                        const currentImgIndex = imgCount++;
+
+                        let promptForThisImage = getEnhancedPrompt(alt);
+
+                        const isGenerating = msg && msg.id && processingImages.current.has(msg.id); // Simple check, ideally check specific image
+
                         result.push(
-                            <div key={`img-${i}`} className="my-2 rounded overflow-hidden">
-                                <img src={src} alt={alt} className="max-w-full h-auto rounded shadow-lg" />
+                            <div key={`img-${i}`} className="my-2 relative group inline-block max-w-full">
+                                <img src={src} alt={alt} className={`max-w-full h-auto rounded shadow-lg transition-opacity ${isGenerating ? 'opacity-50' : 'opacity-100'}`} />
+                                {isGenerating && <div className="absolute inset-0 flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full"></div></div>}
+
+                                <div className="absolute bottom-2 right-2 flex gap-2 transition-opacity bg-black/60 p-1 rounded backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                    <button
+                                        onClick={() => setViewingPrompt(promptForThisImage)}
+                                        className="text-xs text-white hover:text-blue-300 px-2 py-1"
+                                        title="View Image Prompt"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => msg && msg.id && triggerImageRegeneration(msg.id, promptForThisImage, src)}
+                                        className="text-xs text-white hover:text-green-300 px-2 py-1"
+                                        title="Regenerate Image"
+                                        disabled={!!isGenerating}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         );
                     }
@@ -2201,7 +2302,11 @@ export default function ChatPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => {
-                                            const content = JSON.parse(viewingPrompt).prompt || viewingPrompt;
+                                            let content = viewingPrompt;
+                                            try {
+                                                const parsed = JSON.parse(viewingPrompt);
+                                                if (parsed.prompt) content = parsed.prompt;
+                                            } catch (e) { }
                                             navigator.clipboard.writeText(content);
                                         }}
                                         className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
@@ -2311,7 +2416,7 @@ export default function ChatPage() {
                                         className="float-right h-6 md:hidden"
                                         aria-hidden="true"
                                     />
-                                    {formatMessage(msg.content)}
+                                    {formatMessage(msg.content, msg)}
                                 </div>
 
                                 {/* Log Button */}
