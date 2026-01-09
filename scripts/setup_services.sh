@@ -58,6 +58,7 @@ generate_service() {
 generate_service "mellowcake-ai"
 generate_service "comfyui"
 generate_service "f5-tts"
+generate_service "hindsight"
 
 echo "Service files generated in scripts/ directory."
 read -p "Do you want to install these services to systemd now? (y/N) " INSTALL_CHOICE
@@ -67,11 +68,13 @@ if [[ "$INSTALL_CHOICE" =~ ^[Yy]$ ]]; then
     sudo cp scripts/mellowcake-ai.service /etc/systemd/system/
     sudo cp scripts/comfyui.service /etc/systemd/system/
     sudo cp scripts/f5-tts.service /etc/systemd/system/
+    sudo cp scripts/hindsight.service /etc/systemd/system/
     
     sudo systemctl daemon-reload
     sudo systemctl enable mellowcake-ai
     sudo systemctl enable comfyui
     sudo systemctl enable f5-tts
+    sudo systemctl enable hindsight
     
     echo "Checking unattended-upgrades status..."
     sudo systemctl status unattended-upgrades --no-pager || true

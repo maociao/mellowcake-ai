@@ -1,0 +1,21 @@
+[Unit]
+Description=Hindsight Memory Service
+After=network.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PROJECT_ROOT%/hindsight_service/hindsight-api
+Environment=PORT=8888
+Environment=HINDSIGHT_API_LLM_PROVIDER=ollama
+Environment=HINDSIGHT_API_LLM_API_KEY=ollama
+Environment=HINDSIGHT_API_LLM_MODEL=fluffy/l3-8b-stheno-v3.2
+Environment=HINDSIGHT_API_LLM_BASE_URL=http://localhost:11434/v1
+Environment=HINDSIGHT_API_LOG_LEVEL=info
+
+ExecStart=%PROJECT_ROOT%/hindsight_service/hindsight-api/venv/bin/python -m hindsight_api.main --port 8888 --host 0.0.0.0
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

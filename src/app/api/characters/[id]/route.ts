@@ -3,6 +3,7 @@ import { characterService } from '@/services/character-service';
 import path from 'path';
 import fs from 'fs';
 import { Logger } from '@/lib/logger';
+import { memoryService } from '@/services/memory-service';
 
 export async function GET(
     request: NextRequest,
@@ -56,7 +57,24 @@ export async function PUT(
             }
         }
 
+        // ... inside PUT
         const updated = await characterService.update(id, body);
+
+        // Sync Memory Bank
+        try {
+            if (updated.personality && updated.description) {
+                Logger.info(`[Character API] Syncing memory bank for updated character ${updated.name}...`);
+                await memoryService.ensureMemoryBank({
+                    id: updated.id,
+                    name: updated.name,
+                    personality: updated.personality,
+                    description: updated.description
+                });
+            }
+        } catch (e) {
+            Logger.error('[Character API] Failed to sync memory bank on update:', e);
+        }
+
         return NextResponse.json(updated);
     } catch (error) {
         Logger.error('Error updating character:', error);
@@ -118,6 +136,22 @@ export async function PATCH(
         }
 
         const updatedCharacter = await characterService.update(id, body);
+
+        // Sync Memory Bank
+        try {
+            if (updatedCharacter.personality && updatedCharacter.description) {
+                Logger.info(`[Character API] Syncing memory bank for patched character ${updatedCharacter.name}...`);
+                await memoryService.ensureMemoryBank({
+                    id: updatedCharacter.id,
+                    name: updatedCharacter.name,
+                    personality: updatedCharacter.personality,
+                    description: updatedCharacter.description
+                });
+            }
+        } catch (e) {
+            Logger.error('[Character API] Failed to sync memory bank on patch:', e);
+        }
+
         return NextResponse.json(updatedCharacter);
     } catch (error) {
         Logger.error('Error updating character:', error);

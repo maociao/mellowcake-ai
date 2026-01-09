@@ -14,11 +14,11 @@ export const voices = sqliteTable('voices', {
 export const characters = sqliteTable('characters', {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
-    description: text('description'),
+    description: text('description').notNull(),
     appearance: text('appearance'),
     avatarPath: text('avatar_path'),
     firstMessage: text('first_message'),
-    personality: text('personality'),
+    personality: text('personality').notNull(),
     scenario: text('scenario'),
     systemPrompt: text('system_prompt'),
     lorebooks: text('lorebooks'), // JSON string array of names

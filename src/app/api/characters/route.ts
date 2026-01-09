@@ -4,6 +4,7 @@ import { lorebookService } from '@/services/lorebook-service';
 import path from 'path';
 import fs from 'fs';
 import { Logger } from '@/lib/logger';
+import { memoryService } from '@/services/memory-service';
 
 export async function GET() {
     try {
@@ -90,8 +91,31 @@ export async function POST(request: NextRequest) {
         }
 
         const character = await characterService.create(body);
+
+        // Ensure Memory Bank is created/configured
+        try {
+            if (character.personality && character.description) {
+                Logger.info(`[Character API] Configuring memory bank for new character ${character.name}...`);
+                // Run asynchronously to not block response? 
+                // Better to await to catch errors, but it might slow down creation perceived speed.
+                // Given local LLM, let's await but maybe optimize later. 
+                // Actually, user wants it done. Let's fire and forget or await? 
+                // The implementation plan says "Integrate bank creation into Character Save flow".
+                // Let's await to be safe for now.
+                await memoryService.ensureMemoryBank({
+                    id: character.id,
+                    name: character.name,
+                    personality: character.personality,
+                    description: character.description
+                });
+            }
+        } catch (e) {
+            Logger.error('[Character API] Failed to configure memory bank on creation:', e);
+        }
+
         return NextResponse.json(character, { status: 201 });
     } catch (error) {
+        // ...
         Logger.error('Error creating character:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }

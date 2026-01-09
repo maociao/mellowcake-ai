@@ -24,7 +24,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
 
     if (!isOpen) return null;
 
-    const canCreate = name.trim().length > 0;
+    const canCreate = name.trim().length > 0 && personality.trim().length > 0 && description.trim().length > 0;
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -106,9 +106,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Personality</label>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Personality <span className="text-red-500">*</span></label>
                         <textarea
                             name="personality"
+                            required
                             rows={2}
                             value={personality}
                             onChange={(e) => setPersonality(e.target.value)}
@@ -118,9 +119,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Background Story</label>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Background Story <span className="text-red-500">*</span></label>
                         <textarea
                             name="description"
+                            required
                             rows={3}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}

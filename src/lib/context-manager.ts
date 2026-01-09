@@ -343,7 +343,12 @@ NSFW: NSFW/Smut is allowed.`;
 
             const memoryText = sortedMemories.map(m => {
                 // Calculate time ago
-                const date = new Date(m.createdAt || new Date());
+                // If createdAt is null/undefined, we omit the prefix as requested
+                if (!m.createdAt) {
+                    return `[Memory] ${replaceVariables(m.content)}`;
+                }
+
+                const date = new Date(m.createdAt);
                 const now = new Date();
                 const diffMs = now.getTime() - date.getTime();
 
@@ -351,9 +356,11 @@ NSFW: NSFW/Smut is allowed.`;
                 const diffMin = Math.floor(diffSec / 60);
                 const diffHour = Math.floor(diffMin / 60);
                 const diffDay = Math.floor(diffHour / 24);
+                const diffYear = Math.floor(diffDay / 365);
 
                 let timeAgo = '';
-                if (diffDay > 0) timeAgo = `${diffDay}d ago`;
+                if (diffYear > 0) timeAgo = `${diffYear}y ago`;
+                else if (diffDay > 0) timeAgo = `${diffDay}d ago`;
                 else if (diffHour > 0) timeAgo = `${diffHour}h ago`;
                 else if (diffMin > 0) timeAgo = `${diffMin}m ago`;
                 else timeAgo = 'just now';

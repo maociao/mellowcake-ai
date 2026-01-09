@@ -55,6 +55,7 @@ public/workbox-*.js
 public/worker-*.js
 
 # python tts service
+hindsight_service/hindsight-api/venv
 tts_service/venv
 tts_service/uploads
 tts_service/outputs

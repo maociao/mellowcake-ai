@@ -3,7 +3,7 @@
 ## Project Overview
 Mellowcake AI is a sophisticated AI character chat application built as a Progressive Web App (PWA). It integrates:
 - **LLM**: Ollama for character roleplay.
-- **Memory**: Vector-enhanced persistent memory using SQLite.
+- **Memory**: **Hindsight** (Graph+Vector) for persistent, human-like memory.
 - **Voice**: F5-TTS for high-quality speech synthesis (configured for AMD ROCm, adaptable for others).
 - **Visuals**: ComfyUI for generating character images and videos dynamically.
 - **World Building**: A Lorebook system for context-aware injections.
@@ -14,6 +14,7 @@ Mellowcake AI is a sophisticated AI character chat application built as a Progre
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4
 - **Database**: SQLite (via `better-sqlite3`)
+- **Memory Engine**: Hindsight (Python/FastAPI)
 - **ORM**: Drizzle ORM
 - **State Management**: Zustand
 - **PWA**: @ducanh2912/next-pwa
@@ -25,7 +26,9 @@ Mellowcake AI is a sophisticated AI character chat application built as a Progre
   - `src/lib/db/schema.ts`: **Source of Truth for Database Schema.**
   - `src/lib/logger.ts`: **Source of Truth for Logging.**
 - `src/services`: Client-side service layers for API interaction.
+- `hindsight_service/`: Hindsight memory engine (FastAPI).
 - `drizzle/`: Database migration files.
+- `scripts/`: Utilities (`migrate-memories.ts`, `manage-memories.ts`, `sync-banks.ts`).
 - `tts_service/`: Python-based F5-TTS server.
 
 ## Development Rules
@@ -51,7 +54,7 @@ Mellowcake AI is a sophisticated AI character chat application built as a Progre
   - `characters`, `personas`, `chat_sessions`, `chat_messages` (Chat Loop)
   - `voices` (TTS)
   - `lorebooks`, `lorebook_entries` (World Info)
-  - `memories` (Long-term storage)
+  - `memories` (Legacy/Staging for Hindsight)
 
 ### 3. Coding Standards
 - **Components**:
@@ -65,9 +68,10 @@ Mellowcake AI is a sophisticated AI character chat application built as a Progre
   - Strict TypeScript usage. Avoid `any`. Define interfaces for all component props and API responses.
 
 ### 4. Application Architecture
-- **Chat Loop**: The core loop involves fetching chat history -> assembling context (System Prompt + Lore + Memory) -> sending to Ollama -> streaming response -> generating TTS/Images in background (optional).
+- **Chat Loop**: The core loop involves fetching chat history -> assembling context (System Prompt + Lore + Hindsight Memory) -> sending to Ollama -> streaming response -> generating TTS/Images in background (optional).
 - **Service Isolation**: The Next.js app acts as the orchestrator.
   - **Ollama**: External service.
+  - **Hindsight**: Memory Service (port 8888).
   - **F5-TTS**: External Python service (port 8000).
   - **ComfyUI**: External service (port 8188).
   - Code interacting with these services must handle timeouts and connection failures gracefully.

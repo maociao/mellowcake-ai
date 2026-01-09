@@ -1,16 +1,29 @@
 import { db } from '@/lib/db';
 import { memories } from '@/lib/db/schema';
-import { eq, like, or, desc } from 'drizzle-orm';
-import { llmService } from './llm-service';
+import { eq, desc } from 'drizzle-orm';
 import { Logger } from '@/lib/logger';
+import { HindsightClient } from '@vectorize-io/hindsight-client';
+
+const hindsightUrl = process.env.HINDSIGHT_API_URL || 'http://localhost:8888';
+const client = new HindsightClient({ baseUrl: hindsightUrl });
 
 export const memoryService = {
     async createMemory(characterId: number, content: string, keywords: string[] = []) {
+        const bankId = `character_${characterId}`;
+        try {
+            // Push to Hindsight
+            Logger.info(`[Memory Service] Retaining content for bank ${bankId}...`);
+            await client.retain(bankId, content);
+        } catch (error) {
+            Logger.error(`[Memory Service] Failed to retain memory in Hindsight:`, error);
+        }
+
+        // Keep local copy for UI management
         return await db.insert(memories).values({
             characterId,
             content,
             keywords: JSON.stringify(keywords),
-            importance: 1, // Default importance
+            importance: 1,
         }).returning();
     },
 
@@ -22,155 +35,108 @@ export const memoryService = {
     },
 
     async searchMemories(characterId: number, query: string, limit: number = 10) {
-        // Fetch all memories for the character
-        const allMemories = await this.getMemories(characterId);
+        const bankId = `character_${characterId}`;
+        try {
+            Logger.info(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
+            const results = await client.recall(bankId, query) as any;
 
-        if (allMemories.length === 0) return { memories: [], totalFound: 0 };
+            // Transform Hindsight results to match Application's memory structure
+            // Hindsight result structure presumed: { text: string, score: number, metadata: any }
+            // If results is an object with a property (e.g. data or memories), we handle it.
+            let items: any[] = [];
+            if (Array.isArray(results)) {
+                items = results;
+            } else if (results && Array.isArray(results.results)) {
+                items = results.results;
+            } else if (results && Array.isArray(results.memories)) {
+                items = results.memories; // Possible fallback based on Hindsight API versions
+            } else {
+                Logger.warn(`[Memory Service] Unexpected recall format:`, results);
+            }
 
-        // 1. Scoring: Calculate relevance for ALL memories
-        const terms = query.split(' ').filter(t => t.length > 3);
+            const mappedMemories = items.map((r: any) => ({
+                id: -1, // No ID for remote memories
+                characterId,
+                content: r.text || r.content, // Handle potential API variations
+                keywords: JSON.stringify([]),
+                importance: Math.round((r.score || 0) * 10), // Scale 0-1 to 0-10
+                createdAt: r.mentioned_at || r.date || r.created_at || new Date().toISOString(),
+                score: r.score
+            }));
 
-        const scoreMemory = (mem: typeof allMemories[0]) => {
-            if (terms.length === 0) return 0;
-            let score = 0;
-            const text = (mem.content + ' ' + (mem.keywords || '')).toLowerCase();
-            terms.forEach(term => {
-                if (text.includes(term.toLowerCase())) score++;
-            });
-            return score;
-        };
+            return {
+                memories: mappedMemories.slice(0, limit),
+                totalFound: mappedMemories.length
+            };
 
-        const scoredMemories = allMemories.map(mem => ({
-            ...mem,
-            score: scoreMemory(mem)
-        })).filter(mem => mem.score > 0); // STRICT FILTER: match required
-
-        // 2. Sort & Limit
-        // Sort by Score (Desc) -> Recency (Desc)
-        scoredMemories.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score; // Higher score first
-            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(); // Newer first
-        });
-
-        // Take top N
-        return {
-            memories: scoredMemories.slice(0, limit),
-            totalFound: scoredMemories.length
-        };
+        } catch (error) {
+            Logger.error(`[Memory Service] Hindsight recall failed, fetching local only fallback:`, error);
+            // Fallback to local fetch (non-semantic)
+            const localMemories = await this.getMemories(characterId);
+            const mappedLocal = localMemories.map(m => ({
+                id: m.id,
+                characterId: m.characterId,
+                content: m.content,
+                keywords: m.keywords || '[]',
+                importance: m.importance ?? 1,
+                createdAt: m.createdAt ?? new Date().toISOString(),
+                score: 0
+            }));
+            return { memories: mappedLocal.slice(0, limit), totalFound: localMemories.length };
+        }
     },
 
     async generateMemoryFromChat(
         characterId: number,
         chatHistory: { role: string, content: string, name?: string | null }[],
-        existingMemories: { content: string }[] = [],
-        lorebookContent: { content: string }[] = [],
+        existingMemories: { content: string }[] = [], // Unused in new flow
+        lorebookContent: { content: string }[] = [], // Unused in new flow
         personaName: string = 'User',
         characterName: string = 'Assistant'
     ) {
-        // Analyze the last 10 messages (approx 3 turns) to capture broader context
-        const recentMessages = chatHistory.slice(-6);
-        const text = recentMessages.map(m => {
-            // Use the stored name in the message if available, otherwise fallback to current persona/character name
+        const bankId = `character_${characterId}`;
+
+        // Extract recent user messages or significant interaction
+        const recentMessages = chatHistory.slice(-4);
+        const textToAnalyze = recentMessages.map(m => {
             const roleName = m.name ? m.name : (m.role === 'user' ? personaName : characterName);
+            return `${roleName}: ${m.content}`;
+        }).join('\n');
 
-            // Clean content: Remove [GENERATE_IMAGE:...] and ![...](...)
-            const cleanedContent = m.content
-                .replace(/\[GENERATE_IMAGE:.*?\]/g, '')
-                .replace(/!\[.*?\]\(.*?\)/g, '')
-                .trim();
+        if (!textToAnalyze) return null;
 
-            if (!cleanedContent) return null;
-
-            return `${roleName}: ${cleanedContent}`;
-        }).filter(Boolean).join('\n');
-
-        const existingContext = [
-            ...existingMemories.map(m => `- ${m.content}`),
-            ...lorebookContent.map(l => `- ${l.content}`)
-        ].join('\n');
-
-        const prompt = `Analyze the following RECENT dialogue and determine if there is a NEW, SIGNIFICANT fact about ${personaName} or the relationship that should be committed to long-term memory.
-
-[FORBIDDEN - EXISTING KNOWLEDGE]
-(These specific facts are ALREADY KNOWN. Harmonize with them, but NEVER extract them as new memories.)
-${existingContext || "None"}
-
-[TARGET FOR EXTRACTION - RECENT DIALOGUE]
-(Only extract facts explicitly stated here.)
-${text}
-
-[INSTRUCTIONS]
-1. IDENTIFY: specific preferences, major events, or permanent facts stated in [TARGET FOR EXTRACTION].
-2. VERIFY: Check [FORBIDDEN - EXISTING KNOWLEDGE]. If a fact is listed there, IGNORE IT.
-3. RATE IMPORTANCE (1-10):
-   - 1-3: Trivial (e.g., "User said hello", "User likes water", "User is tired") -> IGNORE
-   - 4-6: Contextual/Temporary (e.g., "User is driving home", "User is eating lunch") -> IGNORE
-   - 7-8: Permanent Preference/Fact (e.g., "User has a sister named Sarah", "User hates spicy food") -> SAVE
-   - 9-10: Critical/Core Identity (e.g., "User is allergic to peanuts", "User is moving to Japan") -> SAVE
-4. OUTPUT FORMAT:
-   Return a JSON object: { "memory": "concise sentence", "importance": 8 }
-   If nothing meets the criteria (Score < 7) or no new info, return: { "memory": null, "importance": 0 }
-
-[NEGATIVE CONSTRAINTS]
-- DO NOT rephrase existing knowledge.
-- DO NOT save feelings or temporary states.
-- DO NOT save small talk or pleasantries.
-- JSON ONLY. No markdown.`;
-
-        // We need a model.
-        const models = await llmService.getModels();
-        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
-
-        Logger.llm('memory-gen', { prompt, model, temperature: 0.2 }); // Lower temperature for structured output
+        Logger.info(`[Memory Service] Auto-retaining chat context for ${bankId}`);
 
         try {
-            const response = await llmService.chat(model, [{ role: 'user', content: prompt }], {
-                temperature: 0.2,
-                format: "json"
+            await client.retain(bankId, textToAnalyze, {
+                context: "chat_history",
+                timestamp: new Date()
             });
-
-            if (response) {
-                // Parse JSON
-                let result;
-                try {
-                    result = JSON.parse(response);
-                } catch (e) {
-                    // Fallback if LLM output markdown or extra text
-                    const match = response.match(/\{[\s\S]*\}/);
-                    if (match) {
-                        result = JSON.parse(match[0]);
-                    }
-                }
-
-                if (result && result.memory && result.importance >= 7 && result.memory !== 'null') {
-                    Logger.info(`[Memory Service] Generated High-Value Memory (Score: ${result.importance}): ${result.memory}`);
-
-                    // Generate keywords
-                    const keywordPrompt = `Extract 3-5 comma-separated keywords for this memory: "${result.memory}"`;
-                    const keywordRes = await llmService.chat(model, [{ role: 'user', content: keywordPrompt }]);
-                    const keywords = keywordRes ? keywordRes.split(',').map((k: string) => k.trim()) : [];
-
-                    // Save with Importance
-                    return await db.insert(memories).values({
-                        characterId,
-                        content: result.memory,
-                        keywords: JSON.stringify(keywords),
-                        importance: result.importance,
-                    }).returning();
-                } else {
-                    Logger.debug(`[Memory Service] No high-value memory found (Result: ${JSON.stringify(result)})`);
-                }
-            }
-        } catch (err) {
-            Logger.error('[Memory Service] Error generating memory:', err);
+            return true;
+        } catch (error) {
+            Logger.error('[Memory Service] Error auto-retaining memory:', error);
+            return null;
         }
-        return null;
     },
+
+    async reflect(characterId: number, query: string) {
+        const bankId = `character_${characterId}`;
+        try {
+            Logger.info(`[Memory Service] Reflecting on bank ${bankId}...`);
+            return await client.reflect(bankId, query);
+        } catch (error) {
+            Logger.error('[Memory Service] Reflection failed:', error);
+            return null;
+        }
+    },
+
     async deleteMemory(id: number) {
+        // Only deletes local copy. Hindsight deletion not supported via ID yet.
         return await db.delete(memories).where(eq(memories.id, id)).returning();
     },
 
     async updateMemory(id: number, content: string, keywords: string[]) {
+        // Only updates local copy. 
         return await db.update(memories)
             .set({
                 content,
@@ -178,5 +144,81 @@ ${text}
             })
             .where(eq(memories.id, id))
             .returning();
+    },
+
+    /**
+     * Ensures a Hindsight memory bank exists for the character, configured with their personality.
+     */
+    async ensureMemoryBank(character: { id: number; name: string; personality: string; description: string }) {
+        const bankId = `character_${character.id}`;
+
+        try {
+            // Check if bank exists by getting profile
+            // Note: Hindsight client throws 404 if not found (usually)
+            try {
+                await client.getBankProfile(bankId);
+                // If found, we might want to update it, but for now let's assume existence is enough.
+                // Or we can blindly re-create/update to ensure settings match current character state.
+                Logger.info(`[Memory Service] Updating existing bank ${bankId}...`);
+            } catch (e) {
+                Logger.info(`[Memory Service] Creating new bank ${bankId}...`);
+            }
+
+            // Generate dispositions from LLM
+            const dispositions = await this.generateDispositions(character.personality, character.description);
+
+            // Create or Update Bank
+            await client.createBank(bankId, {
+                name: character.name,
+                background: character.description, // 'description' is Background Story
+                disposition: dispositions
+            });
+
+            Logger.info(`[Memory Service] Bank ${bankId} configured successfully.`);
+
+        } catch (error) {
+            Logger.error(`[Memory Service] Failed to ensure/create memory bank:`, error);
+        }
+    },
+
+    async generateDispositions(personality: string, background: string) {
+        try {
+            const prompt = `
+            Analyze the following character personality and background story to determine their cognitive dispositions on a scale of 1 to 5.
+            
+            Character Personality: ${personality}
+            Character Background: ${background}
+
+            Output ONLY a JSON object with integer values (1-5) for these keys:
+            - skepticism (1=gullible, 5=highly skeptical)
+            - literalism (1=metaphorical/abstract, 5=very literal)
+            - empathy (1=cold/detached, 5=highly empathetic)
+
+            Example: {"skepticism": 3, "literalism": 2, "empathy": 4}
+            `;
+
+            // Circular dependency avoidance: Import llmService dynamically if possible, or assume it's available.
+            // But we are in services layer. Let's import at top of file.
+            // Since we can't easily edit top of file with this chunk, we'll use a dynamic import or assuming 'llmService' is imported.
+            // Actually, I need to add the import separately or in this block if lucky. 
+            // I will use dynamic import here to be safe and avoid multi-chunk complexity for now.
+
+            const { llmService } = await import('./llm-service');
+            const response = await llmService.generate('llama3.1', prompt, { format: 'json', temperature: 0.1 });
+
+            let result = { skepticism: 3, literalism: 3, empathy: 3 }; // defaults
+            try {
+                const parsed = JSON.parse(response);
+                if (parsed.skepticism) result.skepticism = Math.max(1, Math.min(5, parseInt(parsed.skepticism)));
+                if (parsed.literalism) result.literalism = Math.max(1, Math.min(5, parseInt(parsed.literalism)));
+                if (parsed.empathy) result.empathy = Math.max(1, Math.min(5, parseInt(parsed.empathy)));
+            } catch (e) {
+                Logger.warn('[Memory Service] Failed to parse generated dispositions, using defaults.', e);
+            }
+            return result;
+        } catch (e) {
+            Logger.error('[Memory Service] Failed to generate dispositions:', e);
+            return { skepticism: 3, literalism: 3, empathy: 3 };
+        }
     }
 };

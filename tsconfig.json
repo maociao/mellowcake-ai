@@ -38,6 +38,7 @@
   ],
   "exclude": [
     "node_modules",
-    "tts_service"
+    "tts_service",
+    "hindsight_service"
   ]
 }
