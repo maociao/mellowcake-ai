@@ -53,11 +53,11 @@ export async function POST(request: NextRequest) {
         logger.endTimer('preprocessing');
         logger.startTimer('memory_search');
 
-        const { memories, totalFound } = await memoryService.searchMemories(character.id, query);
+        const { memories, total } = await memoryService.searchMemories(character.id, query);
 
         // Calculate Memory Age Stats
         if (memories.length > 0) {
-            const validDates = memories.map(m => m.createdAt).filter((d): d is string => d !== null);
+            const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
             logger.calculateAgeStats(validDates, 'memory');
         }
 
@@ -91,14 +91,15 @@ export async function POST(request: NextRequest) {
 
                 // Track dropped memories due to hard limit
                 // Note: totalFound only tracks PRIMARY character memories total.
+                // Note: total only tracks PRIMARY character memories total.
                 // We should technically add linked total? But let's stick to simple for now:
-                // Total = totalFound (primary) + linkedFound? 
+                // Total = total (primary) + linkedFound? 
                 // Currently I didn't capture linked total. That's fine for now, "Total" usually implies "Available matches".
-                // Let's rely on totalFound.
+                // Let's rely on total.
 
                 // Track dropped
                 const currentCount = memories.length;
-                logger.logMetric('context_memories_total', totalFound); // This is just primary... maybe misleading if we add linked?
+                logger.logMetric('context_memories_total', total); // This is just primary... maybe misleading if we add linked?
 
                 // If we add linked memories, the "pool" is bigger.
                 // Ideally searchMemories for linked returns its total too.
@@ -116,31 +117,31 @@ export async function POST(request: NextRequest) {
                     // Let's just log the metrics based on primary search for consistency with other routes?
                     // But here we explicitly want to support linked.
 
-                    // Let's just log context_memories_dropped as (totalFound - included).
-                    const dropped = totalFound - 10; // Rough estimate
+                    // Let's just log context_memories_dropped as (total - included).
+                    const dropped = total - 10; // Rough estimate
                     logger.logMetric('context_memories_dropped', dropped > 0 ? dropped : 0);
-                    if (totalFound > 0) logger.logMetric('context_memories_dropped_pct', (dropped / totalFound) * 100);
+                    if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
                 } else {
-                    const dropped = totalFound > memories.length ? totalFound - memories.length : 0;
+                    const dropped = total > memories.length ? total - memories.length : 0;
                     logger.logMetric('context_memories_dropped', dropped);
-                    if (totalFound > 0) logger.logMetric('context_memories_dropped_pct', (dropped / totalFound) * 100);
+                    if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
                 }
             } else {
                 logger.logMetric('context_memories_total', 0);
             }
         } else {
-            logger.logMetric('context_memories_total', totalFound);
-            const dropped = totalFound > memories.length ? totalFound - memories.length : 0;
+            logger.logMetric('context_memories_total', total);
+            const dropped = total > memories.length ? total - memories.length : 0;
             logger.logMetric('context_memories_dropped', dropped);
-            if (totalFound > 0) logger.logMetric('context_memories_dropped_pct', (dropped / totalFound) * 100);
+            if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
         }
 
         // Calculate Final Memory Stats (Age & Score)
         if (memories.length > 0) {
-            const validDates = memories.map(m => m.createdAt).filter((d): d is string => d !== null);
+            const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
             logger.calculateAgeStats(validDates, 'memory');
 
-            const scores = memories.map(m => m.score);
+            const scores = memories.map((m: any) => m.score);
             logger.calculateScoreStats(scores, 'memory');
         }
 

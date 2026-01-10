@@ -74,15 +74,15 @@ export async function POST(request: NextRequest) {
 
         // 4. Build Context (Same logic as chat route)
         Logger.debug(`[Regenerate API] Searching memories for character ${character.id} with query: "${content}"`);
-        // Note: Currently memoryService returns { memories, totalFound }
-        const { memories, totalFound } = await memoryService.searchMemories(character.id, content);
+        // Note: Currently memoryService returns { memories, total }
+        const { memories, total } = await memoryService.searchMemories(character.id, content);
 
         // Calculate Memory Age Stats
         if (memories.length > 0) {
-            const validDates = memories.map(m => m.createdAt).filter((d): d is string => d !== null);
+            const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
             logger.calculateAgeStats(validDates, 'memory');
 
-            const scores = memories.map(m => m.score);
+            const scores = memories.map((m: any) => m.score);
             logger.calculateScoreStats(scores, 'memory');
         }
         // Linked Character Logic
@@ -94,14 +94,14 @@ export async function POST(request: NextRequest) {
             }
         }
         // Log metrics immediately
-        logger.logMetric('context_memories_total', totalFound);
+        logger.logMetric('context_memories_total', total);
 
         const includedCount = memories.length;
-        const droppedCount = totalFound - includedCount;
+        const droppedCount = total - includedCount;
 
         logger.logMetric('context_memories_dropped', droppedCount);
-        if (totalFound > 0) {
-            logger.logMetric('context_memories_dropped_pct', (droppedCount / totalFound) * 100);
+        if (total > 0) {
+            logger.logMetric('context_memories_dropped_pct', (droppedCount / total) * 100);
         } else {
             logger.logMetric('context_memories_dropped_pct', 0);
         }

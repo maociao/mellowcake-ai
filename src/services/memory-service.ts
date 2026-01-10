@@ -8,30 +8,92 @@ const hindsightUrl = process.env.HINDSIGHT_API_URL || 'http://localhost:8888';
 const client = new HindsightClient({ baseUrl: hindsightUrl });
 
 export const memoryService = {
-    async createMemory(characterId: number, content: string, keywords: string[] = []) {
+    async createMemory(characterId: number, content: string) {
         const bankId = `character_${characterId}`;
         try {
-            // Push to Hindsight
             Logger.info(`[Memory Service] Retaining content for bank ${bankId}...`);
+            // We use fetch directly for now if client.retain doesn't return the created object with ID
+            // But retain usually just accepts. We might need to list or rely on successful insertion.
+            // Hindsight retain returns void or success status usually.
+            // To get the "created" memory, we can construct a fake one or just return success.
+            // However, the UI expects the returned memory to add to the list.
+            // Let's assume we return a placeholder with a temporary ID or refetch.
+            // BETTER: Return a standard structure.
+
             await client.retain(bankId, content);
+
+            // Return a mock object so UI updates immediately (eventual consistency)
+            return [{
+                id: crypto.randomUUID(), // Temporary UUID
+                characterId,
+                content,
+
+                importance: 1,
+                createdAt: new Date().toISOString(),
+                score: 1
+            }];
         } catch (error) {
             Logger.error(`[Memory Service] Failed to retain memory in Hindsight:`, error);
+            throw error;
         }
-
-        // Keep local copy for UI management
-        return await db.insert(memories).values({
-            characterId,
-            content,
-            keywords: JSON.stringify(keywords),
-            importance: 1,
-        }).returning();
     },
 
     async getMemories(characterId: number) {
-        return await db.select()
-            .from(memories)
-            .where(eq(memories.characterId, characterId))
-            .orderBy(desc(memories.createdAt));
+        return (await this.listMemories(characterId)).memories;
+    },
+
+    async listMemories(characterId: number, limit: number = 100, offset: number = 0) {
+        const bankId = `character_${characterId}`;
+        try {
+            // Use fetch to call the list endpoint directly as we know it works
+            const response = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}/memories/list?limit=${limit}&offset=${offset}`);
+            if (!response.ok) {
+                if (response.status === 404) return { memories: [], total: 0 }; // Bank might not exist yet
+                throw new Error(`Failed to list memories: ${response.statusText}`);
+            }
+            const data = await response.json();
+
+            // Transform to application Memory format
+            // Hindsight list structure: { items: [{ id, text, date, ... }], total, ... }
+            const items = data.items || [];
+            const total = data.total || items.length;
+
+            const mappedMemories = items.map((m: any) => {
+                // Extract document ID from chunk_id if possible (format: bankId_docId_chunkIndex)
+                let documentId = undefined;
+                if (m.chunk_id) {
+                    const parts = m.chunk_id.split('_');
+                    if (parts.length >= 3) {
+                        // The docId is the second to last part usually, but bankId helps split.
+                        // Format: character_4_38caa76a-c982-4353-aa0c-b7bf6eb9593b_0
+                        // Parts: "character", "4", "38caa76a-c982-4353-aa0c-b7bf6eb9593b", "0"
+                        // Actually "character_4" is bankId.
+                        // Let's rely on finding the UUID in the middle.
+                        // Or simply use regex to capture the UUID before the final underscore.
+                        const match = m.chunk_id.match(/_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_\d+$/);
+                        if (match) {
+                            documentId = match[1];
+                        }
+                    }
+                }
+
+                return {
+                    id: m.id, // UUID string of the memory unit
+                    documentId, // UUID string of the source document (for deletion)
+                    characterId,
+                    content: m.text || m.content,
+
+                    importance: 1,
+                    createdAt: m.created_at || m.date || new Date().toISOString(),
+                    score: 1
+                };
+            });
+
+            return { memories: mappedMemories, total };
+        } catch (error) {
+            Logger.error(`[Memory Service] Failed to list memories for ${bankId}:`, error);
+            return { memories: [], total: 0 };
+        }
     },
 
     async searchMemories(characterId: number, query: string, limit: number = 10) {
@@ -58,7 +120,7 @@ export const memoryService = {
                 id: -1, // No ID for remote memories
                 characterId,
                 content: r.text || r.content, // Handle potential API variations
-                keywords: JSON.stringify([]),
+
                 importance: Math.round((r.score || 0) * 10), // Scale 0-1 to 0-10
                 createdAt: r.mentioned_at || r.date || r.created_at || new Date().toISOString(),
                 score: r.score
@@ -66,23 +128,12 @@ export const memoryService = {
 
             return {
                 memories: mappedMemories.slice(0, limit),
-                totalFound: mappedMemories.length
+                total: mappedMemories.length
             };
 
         } catch (error) {
-            Logger.error(`[Memory Service] Hindsight recall failed, fetching local only fallback:`, error);
-            // Fallback to local fetch (non-semantic)
-            const localMemories = await this.getMemories(characterId);
-            const mappedLocal = localMemories.map(m => ({
-                id: m.id,
-                characterId: m.characterId,
-                content: m.content,
-                keywords: m.keywords || '[]',
-                importance: m.importance ?? 1,
-                createdAt: m.createdAt ?? new Date().toISOString(),
-                score: 0
-            }));
-            return { memories: mappedLocal.slice(0, limit), totalFound: localMemories.length };
+            Logger.error(`[Memory Service] Hindsight recall failed, returning empty:`, error);
+            return { memories: [], total: 0 };
         }
     },
 
@@ -130,20 +181,29 @@ export const memoryService = {
         }
     },
 
-    async deleteMemory(id: number) {
-        // Only deletes local copy. Hindsight deletion not supported via ID yet.
-        return await db.delete(memories).where(eq(memories.id, id)).returning();
+    async deleteMemory(characterId: number, documentId: string) {
+        const bankId = `character_${characterId}`;
+        try {
+            Logger.info(`[Memory Service] Deleting document ${documentId} from bank ${bankId}`);
+            // Use fetch to delete
+            const response = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}/documents/${documentId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to delete document: ${response.statusText}`);
+            }
+            return true;
+        } catch (error) {
+            Logger.error('[Memory Service] Failed to delete memory:', error);
+            throw error;
+        }
     },
 
-    async updateMemory(id: number, content: string, keywords: string[]) {
-        // Only updates local copy. 
-        return await db.update(memories)
-            .set({
-                content,
-                keywords: JSON.stringify(keywords)
-            })
-            .where(eq(memories.id, id))
-            .returning();
+    async updateMemory(id: string, content: string, keywords: string[]) {
+        // Hindsight doesn't support direct update by ID easily yet.
+        // Would need delete + add, but we need bankId/characterId context which isn't passed here.
+        Logger.warn('[Memory Service] Update memory not supported for Hindsight yet.');
+        return [];
     },
 
     /**

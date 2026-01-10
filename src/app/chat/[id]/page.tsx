@@ -269,18 +269,54 @@ export default function ChatPage() {
     function MemoryEditor({ characterId }: { characterId: number }) {
         const [memories, setMemories] = useState<any[]>([]);
         const [loading, setLoading] = useState(true);
+        const [isCreating, setIsCreating] = useState(false);
         const [newContent, setNewContent] = useState('');
-        const [newKeywords, setNewKeywords] = useState('');
+
+        // Pagination & Search
+        const [page, setPage] = useState(0);
+        const [total, setTotal] = useState(0);
+        const [searchQuery, setSearchQuery] = useState('');
+        const [debouncedQuery, setDebouncedQuery] = useState('');
+        const limit = 10;
+
+        // Debounce Search
+        useEffect(() => {
+            const handler = setTimeout(() => {
+                setDebouncedQuery(searchQuery);
+            }, 500);
+            return () => clearTimeout(handler);
+        }, [searchQuery]);
+
+        // Reset page on search change
+        useEffect(() => {
+            setPage(0);
+        }, [debouncedQuery]);
 
         useEffect(() => {
             fetchMemories();
-        }, [characterId]);
+        }, [characterId, page, debouncedQuery]);
 
         const fetchMemories = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/memories?characterId=${characterId}`);
-                if (res.ok) setMemories(await res.json());
+                const queryParams = new URLSearchParams({
+                    characterId: characterId.toString(),
+                    limit: limit.toString(),
+                    offset: (page * limit).toString(),
+                    search: debouncedQuery
+                });
+                const res = await fetch(`/api/memories?${queryParams}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // Handle both new format { memories, total } and legacy array just in case
+                    if (Array.isArray(data)) {
+                        setMemories(data);
+                        setTotal(data.length);
+                    } else {
+                        setMemories(data.memories || []);
+                        setTotal(data.total || 0);
+                    }
+                }
             } catch (e) {
                 Logger.error('Fetch memories error:', e);
             } finally {
@@ -291,30 +327,32 @@ export default function ChatPage() {
         const createMemory = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newContent) return;
+            setIsCreating(true);
             try {
                 const res = await fetch('/api/memories', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         characterId,
-                        content: newContent,
-                        keywords: newKeywords.split(',').map(k => k.trim()).filter(k => k)
+                        content: newContent
                     })
                 });
                 if (res.ok) {
                     setNewContent('');
-                    setNewKeywords('');
+
                     fetchMemories();
                 }
             } catch (e) {
                 Logger.error('Create memory error:', e);
+            } finally {
+                setIsCreating(false);
             }
         };
 
-        const deleteMemory = async (id: number) => {
+        const deleteMemory = async (id: string | number) => {
             if (!confirm('Delete this memory?')) return;
             try {
-                const res = await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/api/memories/${id}?characterId=${characterId}`, { method: 'DELETE' });
                 if (res.ok) fetchMemories();
             } catch (e) {
                 Logger.error('Delete memory error:', e);
@@ -332,14 +370,41 @@ export default function ChatPage() {
                             value={newContent}
                             onChange={e => setNewContent(e.target.value)}
                         />
-                        <input
-                            placeholder="Keywords (comma separated)"
-                            className="w-full bg-gray-800 rounded p-2 text-white"
-                            value={newKeywords}
-                            onChange={e => setNewKeywords(e.target.value)}
-                        />
-                        <button type="submit" className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm">Add Memory</button>
+
+                        <button
+                            type="submit"
+                            disabled={isCreating}
+                            className={`bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm flex items-center gap-2 ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isCreating ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Adding...
+                                </>
+                            ) : 'Add Memory'}
+                        </button>
                     </form>
+                </div>
+
+                {/* Search Bar */}
+                <div className="bg-gray-700 p-2 rounded flex gap-2">
+                    <input
+                        placeholder="Search / Filter memories..."
+                        className="w-full bg-gray-800 rounded p-2 text-white text-sm"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="bg-gray-600 hover:bg-gray-500 text-white px-3 rounded text-sm"
+                        >
+                            Clear
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -347,14 +412,12 @@ export default function ChatPage() {
                         <div key={mem.id} className="bg-gray-700 p-3 rounded flex justify-between items-start group">
                             <div>
                                 <div className="text-sm text-white mb-1">{mem.content}</div>
-                                <div className="text-xs text-gray-400 font-mono mb-1">
-                                    {JSON.parse(mem.keywords || '[]').join(', ')}
-                                </div>
+
                                 <div className="text-[10px] text-gray-500">
                                     {new Date(mem.createdAt).toLocaleString()}
                                 </div>
                             </div>
-                            <button onClick={() => deleteMemory(mem.id)} className="text-red-400 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2">
+                            <button onClick={() => deleteMemory(mem.documentId || mem.id)} className="text-red-400 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                 </svg>
@@ -363,6 +426,31 @@ export default function ChatPage() {
                     ))}
                     {!loading && memories.length === 0 && <p className="text-gray-500 text-center">No memories found.</p>}
                 </div>
+
+                {/* Pagination Controls */}
+                {!loading && total > 0 && (
+                    <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-600">
+                        <div>
+                            Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                disabled={page === 0}
+                                onClick={() => setPage(p => Math.max(0, p - 1))}
+                                className={`px-3 py-1 rounded bg-gray-600 text-white ${page === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
+                            >
+                                Prev
+                            </button>
+                            <button
+                                disabled={(page + 1) * limit >= total}
+                                onClick={() => setPage(p => p + 1)}
+                                className={`px-3 py-1 rounded bg-gray-600 text-white ${(page + 1) * limit >= total ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -2625,81 +2713,80 @@ export default function ChatPage() {
                         className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none max-h-48 py-2 px-2"
                         style={{ minHeight: '88px' }}
                     />
-                    <div className="flex flex-col gap-1 mb-1">
-                        <div className="relative">
-                            <button
-                                ref={emojiButtonRef}
-                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                className="p-2 text-gray-400 hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-800"
-                                title="Add Emoji"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm7.5 0c0 .414-.168.75-.375.75S16.5 10.164 16.5 9.75 16.668 9 16.875 9s.375.336.375.75z" />
-                                </svg>
-                            </button>
-                            {showEmojiPicker && (
-                                <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', right: '0', marginBottom: '8px', zIndex: 50 }}>
-                                    <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
-                                </div>
-                            )}
+                    <button
+                        ref={emojiButtonRef}
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className="p-2 text-gray-400 hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-800"
+                        title="Add Emoji"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm7.5 0c0 .414-.168.75-.375.75S16.5 10.164 16.5 9.75 16.668 9 16.875 9s.375.336.375.75z" />
+                        </svg>
+                    </button>
+                    {showEmojiPicker && (
+                        <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', right: '0', marginBottom: '8px', zIndex: 50 }}>
+                            <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
                         </div>
-                        <button
-                            onClick={sendMessage}
-                            disabled={isLoading || !input.trim()}
-                            className="p-2 bg-blue-600 rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 transition-colors"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                            </svg>
-                        </button>
-                    </div>
+                    )}
                 </div>
+                <button
+                    onClick={sendMessage}
+                    disabled={isLoading || !input.trim()}
+                    className="p-2 bg-blue-600 rounded-full text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 transition-colors"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                    </svg>
+                </button>
             </div>
+
             {/* Delete Character Confirmation Modal */}
-            {showDeleteCharConfirm && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" style={{ zIndex: 9999 }}>
-                    <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 relative z-[10000]" style={{ zIndex: 10000 }}>
-                        <h2 className="text-xl font-bold mb-4 text-red-500">Delete Character?</h2>
-                        <p className="text-gray-300 mb-6">
-                            Are you sure you want to delete <span className="font-bold text-white">{character?.name}</span>?
-                            This will permanently delete the character, all chat sessions, voices, images, and videos.
-                            This action cannot be undone.
-                        </p>
+            {
+                showDeleteCharConfirm && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[9999]" style={{ zIndex: 9999 }}>
+                        <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 relative z-[10000]" style={{ zIndex: 10000 }}>
+                            <h2 className="text-xl font-bold mb-4 text-red-500">Delete Character?</h2>
+                            <p className="text-gray-300 mb-6">
+                                Are you sure you want to delete <span className="font-bold text-white">{character?.name}</span>?
+                                This will permanently delete the character, all chat sessions, voices, images, and videos.
+                                This action cannot be undone.
+                            </p>
 
-                        <div className="mb-6 bg-gray-700 p-3 rounded">
-                            <label className="flex items-center space-x-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={deleteCharWithLorebook}
-                                    onChange={e => setDeleteCharWithLorebook(e.target.checked)}
-                                    className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-red-600 focus:ring-red-500"
-                                />
-                                <span className="text-sm">Also delete associated Lorebooks?</span>
-                            </label>
-                            {deleteCharWithLorebook && (
-                                <p className="text-xs text-red-400 mt-2 pl-8">
-                                    Warning: This will delete any Lorebook listed in this character's profile.
-                                </p>
-                            )}
-                        </div>
+                            <div className="mb-6 bg-gray-700 p-3 rounded">
+                                <label className="flex items-center space-x-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={deleteCharWithLorebook}
+                                        onChange={e => setDeleteCharWithLorebook(e.target.checked)}
+                                        className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-red-600 focus:ring-red-500"
+                                    />
+                                    <span className="text-sm">Also delete associated Lorebooks?</span>
+                                </label>
+                                {deleteCharWithLorebook && (
+                                    <p className="text-xs text-red-400 mt-2 pl-8">
+                                        Warning: This will delete any Lorebook listed in this character's profile.
+                                    </p>
+                                )}
+                            </div>
 
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={() => setShowDeleteCharConfirm(false)}
-                                className="px-4 py-2 text-gray-400 hover:text-white"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmDeleteCharacter}
-                                className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded"
-                            >
-                                Confirm Delete
-                            </button>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    onClick={() => setShowDeleteCharConfirm(false)}
+                                    className="px-4 py-2 text-gray-400 hover:text-white"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDeleteCharacter}
+                                    className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded"
+                                >
+                                    Confirm Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div >
     );
 }

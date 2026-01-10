@@ -4,9 +4,15 @@ import { Logger } from '@/lib/logger';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { id: idStr } = await params;
-        const id = parseInt(idStr);
-        await memoryService.deleteMemory(id);
+        const { id } = await params; // ID is now string (UUID)
+        const searchParams = request.nextUrl.searchParams;
+        const characterId = searchParams.get('characterId');
+
+        if (!characterId) {
+            return new NextResponse('Missing characterId', { status: 400 });
+        }
+
+        await memoryService.deleteMemory(parseInt(characterId), id);
         return new NextResponse(null, { status: 204 });
     } catch (error) {
         Logger.error('Error deleting memory:', error);
@@ -16,8 +22,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { id: idStr } = await params;
-        const id = parseInt(idStr);
+        const { id } = await params;
         const body = await request.json();
         const { content, keywords } = body;
 

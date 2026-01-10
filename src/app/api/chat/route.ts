@@ -63,29 +63,29 @@ export async function POST(request: NextRequest) {
 
         // Note: Currently memoryService doesn't return total matches vs dropped. 
         // We log what we get.
-        const { memories, totalFound } = await memoryService.searchMemories(character.id, memoryContext);
+        const { memories, total } = await memoryService.searchMemories(character.id, memoryContext);
 
         // Calculate Memory Age Stats
         if (memories.length > 0) {
             // Filter out memories with null createdAt and ensure date strings
             const validDates = memories
-                .map(m => m.createdAt)
-                .filter((d): d is string => d !== null);
+                .map((m: any) => m.createdAt)
+                .filter((d: any): d is string => d !== null);
             logger.calculateAgeStats(validDates, 'memory');
 
-            const scores = memories.map(m => m.score);
+            const scores = memories.map((m: any) => m.score);
             logger.calculateScoreStats(scores, 'memory');
         }
 
         // Log metrics immediately
-        logger.logMetric('context_memories_total', totalFound);
+        logger.logMetric('context_memories_total', total);
 
         const includedCount = memories.length;
-        const droppedCount = totalFound - includedCount;
+        const droppedCount = total - includedCount;
 
         logger.logMetric('context_memories_dropped', droppedCount);
-        if (totalFound > 0) {
-            logger.logMetric('context_memories_dropped_pct', (droppedCount / totalFound) * 100);
+        if (total > 0) {
+            logger.logMetric('context_memories_dropped_pct', (droppedCount / total) * 100);
         } else {
             logger.logMetric('context_memories_dropped_pct', 0);
         }
