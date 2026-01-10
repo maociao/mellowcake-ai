@@ -2,6 +2,15 @@
 
 Mellowcake AI is a comprehensive AI character chat application featuring persistent memory, dynamic personas, and rich media integration. It combines advanced Large Language Models (LLM), Text-to-Speech (TTS), and Image/Video generation into a unified, responsive Progressive Web App (PWA).
 
+## Why Mellowcake AI?
+
+Experience the best in character chat (comparable to CharacterAI and others) with one critical difference: **You own it.**
+
+- **🔒 Completely Private**: Your conversations, characters, and data stay on your hardware. No third-party servers, no data mining.
+- **🚫 Censorship-Free**: Run any model you want via Ollama. No filters (unless you add them), no "I can't answer that," and no restricted topics.
+- **🏠 Own Your Experience**: Hosted locally or on your own private cloud. You control the uptime, the updates, and the features.
+- **✨ Premium Experience**: A polished, "wow-factor" UI that doesn't feel like a science experiment, supporting rich media, voice, and even video generation.
+
 ## Features
 
 - **Character Chat**: Interactive chat with AI characters using **Ollama** as the backend.
@@ -143,6 +152,7 @@ This will install and enable:
 - `scripts/` - Utility scripts for setup and deployment.
   - `manage-memories.ts`: CLI for listing and deleting Hindsight memories.
   - `sync-banks.ts`: Syncs Hindsight memory bank configurations for all characters.
+- `public/` - Static assets, including PWA manifest and icons.
 
 ## Utility Tasks
 
@@ -152,10 +162,9 @@ Inspect and delete individual Hindsight memories using the CLI.
 - **Delete memory**: `npx tsx scripts/manage-memories.ts delete <character_id> <document_id>`
 
 ### Bank Sync ([sync-banks.ts](./scripts/sync-banks.ts))
-Updates the Hindsight Memory Bank configuration (Name, Personality, Dispositions) for **all** existing characters to match the current database state.
+Updates the Hindsight Memory Bank configuration (Name, Personality, Dispositions) for **all** characters based on the character personalities and backgrounds in the database.
 - **Run**: `npx tsx scripts/sync-banks.ts`
-- *Note*: This does not delete existing memories, only updates metadata.
-- `public/` - Static assets, including PWA manifest and icons.
+- *Note*: This does not delete existing memories, it only updates metadata.
 
 ## Deployment
 
