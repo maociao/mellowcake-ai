@@ -4,6 +4,7 @@ import { llmService } from './llm-service';
 import { characterService } from './character-service';
 import { eq, desc, asc, gte, and } from 'drizzle-orm';
 import { Logger } from '@/lib/logger';
+import { CONFIG } from '@/config';
 
 export const chatService = {
     async createSession(characterId: number, personaId?: number, name?: string, lorebooks?: string[], includeFirstMessage: boolean = true) {
@@ -254,8 +255,8 @@ ${text}
 Summary: `;
 
         // Use default model
-        const models = await llmService.getModels();
-        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        // Use configured model
+        const model = CONFIG.OLLAMA_CHAT_MODEL;
 
         const summary = await llmService.chat(model, [{ role: 'user', content: prompt }], { temperature: 0.4 });
         return summary;

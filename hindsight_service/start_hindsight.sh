@@ -2,6 +2,13 @@
 
 # Configuration
 export PORT=8888
+
+# Source .env.local from project root if it exists
+if [ -f "$(dirname "$0")/../.env.local" ]; then
+    set -a
+    source "$(dirname "$0")/../.env.local"
+    set +a
+fi
 export HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER:-ollama}
 export HINDSIGHT_API_LLM_API_KEY=ollama
 export HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_API_LLM_MODEL:-fluffy/l3-8b-stheno-v3.2}

@@ -9,6 +9,7 @@ import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
 import { Logger } from '@/lib/logger';
+import { CONFIG } from '@/config';
 
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
@@ -154,8 +155,8 @@ export async function POST(request: NextRequest) {
 
         // 5. Call LLM
         // Use default model or try to find what was used? Let's use default/stheno preference
-        const models = await llmService.getModels();
-        const selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        // Use default model or try to find what was used? Let's use default/stheno preference
+        const selectedModel = CONFIG.OLLAMA_CHAT_MODEL;
 
         logger.logMetric('model' as any, selectedModel);
 

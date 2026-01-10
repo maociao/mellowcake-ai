@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { memoryService } from '@/services/memory-service';
 import { llmService } from '@/services/llm-service';
 import { Logger } from '@/lib/logger';
+import { CONFIG } from '@/config';
 
 export async function POST(req: NextRequest) {
     try {
@@ -103,9 +104,8 @@ Do not include "Here is the ..." or markdown headers. Just the raw text.
 `;
 
         // 4. Call LLM
-        const models = await llmService.getModels();
         // Prefer a smart model
-        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno') || m.name.toLowerCase().includes('psy'))?.name || models[0]?.name || 'llama3:latest';
+        const model = CONFIG.OLLAMA_CHAT_MODEL;
 
         const response = await llmService.chat(model, [{ role: 'user', content: prompt }]);
         const result = response?.trim();

@@ -91,7 +91,7 @@ pip install -r hindsight-api/requirements.txt
 
 ### 4. Environment Configuration
 
-Rename `env.example` file to `.env.local` file in the root directory and configure the following variables:
+Rename `.env.example` file to `.env.local` file in the root directory and configure the following variables:
 
 ```bash
 # Authentication

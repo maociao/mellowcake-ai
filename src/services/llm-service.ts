@@ -18,17 +18,7 @@ export interface ChatMessage {
 }
 
 export const llmService = {
-    async getModels() {
-        try {
-            const response = await fetch(`${CONFIG.OLLAMA_URL}/api/tags`);
-            if (!response.ok) throw new Error('Failed to fetch models');
-            const data = await response.json();
-            return data.models;
-        } catch (error) {
-            Logger.error('Error fetching models:', error);
-            return [];
-        }
-    },
+
 
     async getModelInfo(model: string) {
         try {

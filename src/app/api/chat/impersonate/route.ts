@@ -9,6 +9,7 @@ import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
 import { Logger } from '@/lib/logger';
+import { CONFIG } from '@/config';
 
 export async function POST(request: NextRequest) {
     let logger: PerformanceLogger | undefined;
@@ -193,9 +194,8 @@ export async function POST(request: NextRequest) {
         logger.endTimer('context_construction');
 
         // 4. Call LLM
-        const models = await llmService.getModels();
         // Use stheno or default
-        const model = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+        const model = CONFIG.OLLAMA_CHAT_MODEL;
 
         // Update model in logger
         logger.logMetric('model' as any, model); // Hacksy since I didn't verify if I can update fields

@@ -75,7 +75,7 @@ export class PerformanceLogger {
         }
     }
 
-    logMetric(key: keyof PerformanceMetrics, value: number) {
+    logMetric(key: keyof PerformanceMetrics, value: number | string) {
         if (!this.enabled) return;
         (this.logs as any)[key] = value;
     }

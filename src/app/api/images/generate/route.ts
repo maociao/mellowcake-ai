@@ -67,6 +67,11 @@ export async function POST(req: NextRequest) {
         const workflowStr = fs.readFileSync(workflowPath, 'utf-8');
         const workflow = JSON.parse(workflowStr);
 
+        // 1b. Inject Model Config
+        if (workflow['4']) {
+            workflow['4'].inputs.ckpt_name = CONFIG.COMFY_IMAGE_MODEL;
+        }
+
         // 2. Handle Image-to-Image Specifics
         if (useImg2Img && sourceImage) {
             // Resolve file path (sourceImage is a URL path like /api/avatars/file.png or /characters/file.png)

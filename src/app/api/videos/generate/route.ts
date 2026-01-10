@@ -106,6 +106,12 @@ export async function POST(req: NextRequest) {
             workflow['7'].inputs.filename_prefix = `mellowcake-ai/char_${characterId}`;
         }
 
+        // 4a. Inject Model Configs
+        if (workflow['1']) workflow['1'].inputs.unet_name = CONFIG.COMFY_VIDEO_UNET_HIGH;
+        if (workflow['2']) workflow['2'].inputs.unet_name = CONFIG.COMFY_VIDEO_UNET_LOW;
+        if (workflow['8']) workflow['8'].inputs.vae_name = CONFIG.COMFY_VIDEO_VAE;
+        if (workflow['20']) workflow['20'].inputs.clip_name = CONFIG.COMFY_VIDEO_CLIP;
+
         // 4b. Randomize Seeds
         // Node 15 is KSampler (Advanced) HIGH
         // Node 16 is KSampler (Advanced) LOW

@@ -9,6 +9,7 @@ import { lorebookService } from '@/services/lorebook-service';
 import { trimResponse } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
 import { Logger } from '@/lib/logger';
+import { CONFIG } from '@/config';
 
 export async function POST(request: NextRequest) {
     let logger: PerformanceLogger | undefined;
@@ -149,9 +150,7 @@ export async function POST(request: NextRequest) {
         // 5. Call LLM (Generate)
         let selectedModel = model;
         if (!selectedModel) {
-            const models = await llmService.getModels();
-            // Prioritize 'stheno' model if available
-            selectedModel = models.find((m: { name: string }) => m.name.toLowerCase().includes('stheno'))?.name || models[0]?.name || 'llama3:latest';
+            selectedModel = CONFIG.OLLAMA_CHAT_MODEL;
         }
         Logger.info(`[Chat API] Calling LLM generate with model: ${selectedModel}`);
 
