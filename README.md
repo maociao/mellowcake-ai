@@ -32,6 +32,23 @@ Before setting up, ensure you have the following installed:
 - **ComfyUI**: For image/video generation (running locally on port 8188 by default)
 - **AMD GPU (Optional)**: The TTS service comes pre-configured for AMD ROCm 6.2. Adjustments may be needed for NVIDIA/CPU.
 
+## Recommended Models
+
+For the best experience (and to match the intended design), we recommend using the following models:
+
+- **Chat & Memory LLM**: [L3-8B-Stheno-v3.2](https://huggingface.co/Sao10K/L3-8B-Stheno-v3.2) (Run via Ollama)
+  - *Why?* Excellent roleplay capabilities and follows instructions well for memory extraction.
+- **Memory Embeddings**: [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5)
+  - *Why?* High performance, low resource usage, standard for RAG.
+- **Memory Reranker**: [ms-marco-MiniLM-L-6-v2](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2)
+  - *Why?* Efficiently sorts relevant memories for better context.
+- **Text-to-Speech**: [F5-TTS](https://huggingface.co/SWivid/F5-TTS) (Base v1)
+  - *Why?* State-of-the-art zero-shot voice cloning and emotive speech.
+- **Image Generation**: [RealCartoon Realistic v17](https://civitai.com/models/97259)
+  - *Why?* Consistent, high-quality semi-realistic anime style.
+- **Video Generation**: [Wan 2.1 Image2Video](https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-480P)
+  - *Why?* Capable of animating static character images into convincing loops.
+
 ## Installation
 
 ### 1. Clone the Repository
