@@ -10,6 +10,14 @@ if [[ $(basename "$PROJECT_ROOT") == "scripts" ]]; then
     PROJECT_ROOT=$(pwd)
 fi
 
+# Source .env.local default values if available
+if [ -f "$PROJECT_ROOT/.env.local" ]; then
+    echo "Loading configuration from .env.local..."
+    set -a
+    source "$PROJECT_ROOT/.env.local"
+    set +a
+fi
+
 echo "Detected User: $CURRENT_USER"
 echo "Detected Project Root: $PROJECT_ROOT"
 
@@ -21,10 +29,17 @@ NODE_BIN_DIR=$(dirname "$NODE_EXEC")
 echo "Detected Node: $NODE_EXEC"
 echo "Detected NPM: $NPM_EXEC"
 
-# Default ComfyUI path (sibling directory)
-DEFAULT_COMFY_ROOT="${PROJECT_ROOT}/../ComfyUI"
-read -p "Enter ComfyUI absolute path (Default: $DEFAULT_COMFY_ROOT): " COMFYUI_ROOT
-COMFYUI_ROOT=${COMFYUI_ROOT:-$DEFAULT_COMFY_ROOT}
+# Default ComfyUI path
+# Use env var if present, otherwise default to sibling directory
+DEFAULT_COMFY_ROOT="${COMFYUI_ROOT:-${PROJECT_ROOT}/../ComfyUI}"
+
+# Resolve relative path for default if needed
+if [[ "$DEFAULT_COMFY_ROOT" != /* ]]; then
+    DEFAULT_COMFY_ROOT="${PROJECT_ROOT}/${DEFAULT_COMFY_ROOT}"
+fi
+
+read -p "Enter ComfyUI absolute path (Default: $DEFAULT_COMFY_ROOT): " INPUT_COMFY_ROOT
+COMFYUI_ROOT=${INPUT_COMFY_ROOT:-$DEFAULT_COMFY_ROOT}
 echo "Using ComfyUI Root: $COMFYUI_ROOT"
 
 # Detect Python for Comfy

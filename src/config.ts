@@ -2,6 +2,7 @@ export const CONFIG = {
     OLLAMA_URL: process.env.OLLAMA_URL || 'http://127.0.0.1:11434',
     OLLAMA_CHAT_MODEL: process.env.OLLAMA_CHAT_MODEL || 'fluffy/l3-8b-stheno-v3.2',
     COMFY_URL: process.env.COMFY_URL || 'http://127.0.0.1:8188',
+    COMFYUI_ROOT: process.env.COMFYUI_ROOT || '../ComfyUI',
     COMFY_IMAGE_MODEL: process.env.COMFY_IMAGE_MODEL || 'realcartoonRealistic_v17.safetensors',
     COMFY_VIDEO_UNET_HIGH: process.env.COMFY_VIDEO_UNET_HIGH || 'Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf',
     COMFY_VIDEO_UNET_LOW: process.env.COMFY_VIDEO_UNET_LOW || 'Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf',

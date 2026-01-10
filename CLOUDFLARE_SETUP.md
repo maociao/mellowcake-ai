@@ -1,11 +1,11 @@
-# Setting up Cloudflare Tunnel for mellowcake.ai
+# Setting up Cloudflare Tunnel
 
-This guide will help you expose your local SillyTavern Web App to the internet using your domain `mellowcake.ai` via Cloudflare Tunnel.
+This guide will help you expose your local Web App to the internet using your domain via Cloudflare Tunnel.
 
 ## Prerequisites
 
 - A Cloudflare account.
-- `mellowcake.ai` must be active on Cloudflare (DNS managed by Cloudflare).
+- Your domain must be active on Cloudflare (DNS managed by Cloudflare).
 
 ## Step 1: Install `cloudflared`
 
@@ -33,7 +33,7 @@ Run the following command to login. This will open a browser window (or give you
 cloudflared tunnel login
 ```
 
-Select `mellowcake.ai` when prompted.
+Select your domain when prompted.
 
 ## Step 3: Create a Tunnel
 
@@ -47,11 +47,11 @@ This will output a **Tunnel ID**. Note this ID.
 
 ## Step 4: Configure DNS
 
-Route a subdomain (e.g., `chat.mellowcake.ai`) to your tunnel.
+Route a subdomain (e.g., `chat.your-domain.com`) to your tunnel.
 
 ```bash
 # Replace <Tunnel-Name> with 'chat-app' or your chosen name
-cloudflared tunnel route dns chat-app chat.mellowcake.ai
+cloudflared tunnel route dns chat-app chat.your-domain.com
 ```
 
 ## Step 5: Configure the Tunnel
@@ -66,10 +66,10 @@ Add the following content (replace `<Tunnel-UUID>` with the ID from Step 3):
 
 ```yaml
 tunnel: <Tunnel-UUID>
-credentials-file: /home/mellowcake/.cloudflared/<Tunnel-UUID>.json
+credentials-file: /home/your-username/.cloudflared/<Tunnel-UUID>.json
 
 ingress:
-  - hostname: chat.mellowcake.ai
+  - hostname: chat.your-domain.com
     service: http://localhost:3000
   - service: http_status:404
 ```
@@ -98,7 +98,7 @@ sudo cp ~/.cloudflared/*.json /etc/cloudflared/
 sudo nano /etc/cloudflared/config.yml
 ```
 Change:
-`credentials-file: /home/mellowcake/.cloudflared/<Tunnel-UUID>.json`
+`credentials-file: /home/your-username/.cloudflared/<Tunnel-UUID>.json`
 To:
 `credentials-file: /etc/cloudflared/<Tunnel-UUID>.json`
 
@@ -108,4 +108,4 @@ sudo cloudflared service install
 sudo systemctl start cloudflared
 ```
 
-Now you can access your app at `https://chat.mellowcake.ai`!
+Now you can access your app at `https://chat.your-domain.com`!
