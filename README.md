@@ -22,6 +22,19 @@ Experience the best in character chat (comparable to CharacterAI and others) wit
 - **Progressive Web App (PWA)**: Installable on mobile and desktop devices with secure, persistent authentication.
 - **Responsive Design**: Modern, "wow-factor" UI built with **Next.js 16**, **React 19**, and **Tailwind CSS v4**.
 
+## System Requirements
+
+**Note: This project is developed and tested primarily on AMD Hardware (Ryzen + Radeon).** It offers a first-class experience for AMD users often left behind by CUDA-exclusive projects.
+
+- **GPU**: AMD Radeon RX 7000 Series recommended (Tested heavily on **RX 7900 XT** / **XTX**).
+  - **VRAM**: **20GB+ recommended** for full concurrency (running Chat LLM, TTS model, and Image Generation simultaneously).
+  - *Minimum*: **16GB VRAM** should be sufficient, though you may experience slowdowns if running all services concurrently.
+- **RAM**: 32GB+ System RAM.
+- **OS**: Linux (Optimized for **ROCm 6.2**).
+- **Driver**: AMDGPU / ROCm 6.2+.
+
+*NVIDIA users can run this application but will need to manually adjust the `requirements.txt` and setup scripts to install the CUDA versions of PyTorch.*
+
 ## Prerequisites
 
 Before setting up, ensure you have the following installed:
@@ -30,7 +43,6 @@ Before setting up, ensure you have the following installed:
 - **Python**: Version 3.11 or higher (for Hindsight)
 - **Ollama**: For running LLMs (local or remote)
 - **ComfyUI**: For image/video generation (running locally on port 8188 by default)
-- **AMD GPU (Optional)**: The TTS service comes pre-configured for AMD ROCm 6.2. Adjustments may be needed for NVIDIA/CPU.
 
 ## Recommended Models
 
