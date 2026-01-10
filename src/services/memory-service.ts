@@ -96,7 +96,7 @@ export const memoryService = {
         }
     },
 
-    async searchMemories(characterId: number, query: string, limit: number = 10) {
+    async searchMemories(characterId: number, query: string, limit: number = 25) {
         const bankId = `character_${characterId}`;
         try {
             Logger.info(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
@@ -123,7 +123,7 @@ export const memoryService = {
 
                 importance: Math.round((r.score || 0) * 10), // Scale 0-1 to 0-10
                 createdAt: r.mentioned_at || r.date || r.created_at || new Date().toISOString(),
-                score: r.score
+                score: r.score || 0
             }));
 
             return {

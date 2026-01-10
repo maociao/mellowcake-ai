@@ -79,7 +79,6 @@ export const memories = sqliteTable('memories', {
     id: integer('id').primaryKey({ autoIncrement: true }),
     characterId: integer('character_id').references(() => characters.id).notNull(),
     content: text('content').notNull(),
-    keywords: text('keywords'), // JSON string or comma-separated
     importance: integer('importance').default(1),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

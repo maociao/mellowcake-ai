@@ -1977,6 +1977,7 @@ class MemoryEngine(MemoryEngineInterface):
                         mentioned_at=result_dict.get("mentioned_at"),
                         document_id=result_dict.get("document_id"),
                         chunk_id=result_dict.get("chunk_id"),
+                        score=result_dict.get("combined_score"),
                     )
                 )
 

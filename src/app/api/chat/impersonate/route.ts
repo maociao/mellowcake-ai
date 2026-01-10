@@ -105,8 +105,8 @@ export async function POST(request: NextRequest) {
                 // Ideally searchMemories for linked returns its total too.
                 // For now, let's just log what we have.
 
-                if (memories.length > 10) {
-                    memories.length = 10;
+                if (memories.length > 25) {
+                    memories.length = 25;
                     // Dropped is (primary total + linked inserted) - 10? 
                     // This metric is getting tricky with merged lists.
                     // Let's simplify: Dropped = (Total Candidates) - (Final Included)
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
                     // But here we explicitly want to support linked.
 
                     // Let's just log context_memories_dropped as (total - included).
-                    const dropped = total - 10; // Rough estimate
+                    const dropped = total - 25; // Rough estimate
                     logger.logMetric('context_memories_dropped', dropped > 0 ? dropped : 0);
                     if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
                 } else {

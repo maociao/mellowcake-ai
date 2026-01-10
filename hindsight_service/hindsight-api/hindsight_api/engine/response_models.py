@@ -102,6 +102,7 @@ class MemoryFact(BaseModel):
     chunk_id: str | None = Field(
         None, description="ID of the chunk this fact was extracted from (format: bank_id_document_id_chunk_index)"
     )
+    score: float | None = Field(None, description="Relevance score (0.0-1.0)")
 
 
 class ChunkInfo(BaseModel):

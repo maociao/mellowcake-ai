@@ -134,6 +134,7 @@ class RecallResult(BaseModel):
     document_id: str | None = None  # Document this memory belongs to
     metadata: dict[str, str] | None = None  # User-defined metadata
     chunk_id: str | None = None  # Chunk this fact was extracted from
+    score: float | None = None  # Relevance score (0.0-1.0)
 
 
 class EntityObservationResponse(BaseModel):
@@ -1217,6 +1218,7 @@ def _register_routes(app: FastAPI):
                     mentioned_at=fact.mentioned_at,
                     document_id=fact.document_id,
                     chunk_id=fact.chunk_id,
+                    score=fact.score,
                 )
                 for fact in core_result.results
             ]
