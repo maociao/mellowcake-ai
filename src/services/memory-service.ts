@@ -96,8 +96,10 @@ export const memoryService = {
         }
     },
 
-    async searchMemories(characterId: number, query: string, limit: number = 25) {
+    async searchMemories(characterId: number, query: string, limit: number = 50) {
         const bankId = `character_${characterId}`;
+        const MIN_SCORE = 0.3;
+
         try {
             Logger.info(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
             const results = await client.recall(bankId, query) as any;
@@ -116,19 +118,21 @@ export const memoryService = {
                 Logger.warn(`[Memory Service] Unexpected recall format:`, results);
             }
 
-            const mappedMemories = items.map((r: any) => ({
-                id: -1, // No ID for remote memories
-                characterId,
-                content: r.text || r.content, // Handle potential API variations
+            const mappedMemories = items
+                .map((r: any) => ({
+                    id: -1, // No ID for remote memories
+                    characterId,
+                    content: r.text || r.content, // Handle potential API variations
 
-                importance: Math.round((r.score || 0) * 10), // Scale 0-1 to 0-10
-                createdAt: r.mentioned_at || r.date || r.created_at || new Date().toISOString(),
-                score: r.score || 0
-            }));
+                    importance: Math.round((r.score || 0) * 10), // Scale 0-1 to 0-10
+                    createdAt: r.mentioned_at || r.date || r.created_at || new Date().toISOString(),
+                    score: r.score || 0
+                }))
+                .filter(m => m.score >= MIN_SCORE);
 
             return {
                 memories: mappedMemories.slice(0, limit),
-                total: mappedMemories.length
+                total: items.length // Total found before filtering
             };
 
         } catch (error) {
