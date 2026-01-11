@@ -99,11 +99,31 @@ AUTH_SECRET="your-secure-random-secret-key" # Used for signing JWTs
 BASIC_AUTH_USER="admin"                     # Admin username
 BASIC_AUTH_PASS="password"                  # Admin password
 
+# Chat Configuration
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_CHAT_MODEL="fluffy/l3-8b-stheno-v3.2"
+
 # Hindsight Configuration
 HINDSIGHT_API_URL=http://localhost:8888
 HINDSIGHT_API_LLM_PROVIDER=ollama
-HINDSIGHT_API_LLM_MODEL=llama3.1
-HINDSIGHT_API_LLM_BASE_URL=http://localhost:11434
+HINDSIGHT_API_LLM_MODEL="fluffy/l3-8b-stheno-v3.2"
+HINDSIGHT_API_LLM_BASE_URL=http://localhost:11434/v1
+
+# ComfyUI Configuration
+COMFYUI_ROOT="../ComfyUI" # Absolute path or relative to project root
+COMFY_URL=http://127.0.0.1:8188
+COMFY_IMAGE_MODEL="realcartoonRealistic_v17.safetensors"
+
+# ComfyUI Video Configuration (Wan 2.1)
+COMFY_VIDEO_UNET_HIGH="Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf"
+COMFY_VIDEO_UNET_LOW="Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf"
+COMFY_VIDEO_VAE="wan_2.1_vae.safetensors"
+COMFY_VIDEO_CLIP="umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+
+# Logging & Debugging
+LOG_LEVEL=info
+LOG_LLM_PROMPTS=false
+LOG_COMFY_WORKFLOWS=false
 ```
 
 ### 5. Database Setup
