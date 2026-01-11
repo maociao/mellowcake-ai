@@ -199,6 +199,24 @@ export const memoryService = {
         }
     },
 
+    async deleteMemoryBank(characterId: number) {
+        const bankId = `character_${characterId}`;
+        try {
+            Logger.info(`[Memory Service] Deleting memory bank ${bankId}...`);
+            const response = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok && response.status !== 404) {
+                throw new Error(`Failed to delete memory bank: ${response.statusText}`);
+            }
+            return true;
+        } catch (error) {
+            Logger.error(`[Memory Service] Failed to delete memory bank ${bankId}:`, error);
+            // Don't throw, just log. Deleting a character shouldn't fail if bank deletion fails.
+            return false;
+        }
+    },
+
     async updateMemory(id: string, content: string, keywords: string[]) {
         // Hindsight doesn't support direct update by ID easily yet.
         // Would need delete + add, but we need bankId/characterId context which isn't passed here.

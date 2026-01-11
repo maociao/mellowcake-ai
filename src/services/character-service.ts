@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { characters, chatSessions, chatMessages, memories, characterVideos, personas, lorebooks } from '@/lib/db/schema';
 import { lorebookService } from './lorebook-service';
+import { memoryService } from './memory-service';
 import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
@@ -157,8 +158,13 @@ export const characterService = {
         // Delete Videos (DB)
         await db.delete(characterVideos).where(eq(characterVideos.characterId, id));
 
-        // Delete Memories
-        await db.delete(memories).where(eq(memories.characterId, id));
+        // Delete Memories (Legacy SQL + Hindsight)
+        try {
+            await db.delete(memories).where(eq(memories.characterId, id));
+            await memoryService.deleteMemoryBank(id);
+        } catch (e) {
+            Logger.warn('Failed to cleanup memories completely', e);
+        }
 
         // Delete Sessions (will cascade delete messages)
         await db.delete(chatSessions).where(eq(chatSessions.characterId, id));
