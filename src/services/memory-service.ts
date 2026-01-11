@@ -98,7 +98,7 @@ export const memoryService = {
 
     async searchMemories(characterId: number, query: string, limit: number = 50) {
         const bankId = `character_${characterId}`;
-        const MIN_SCORE = 0.3;
+        const MIN_SCORE = 0.25;
 
         try {
             Logger.info(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
@@ -120,7 +120,8 @@ export const memoryService = {
 
             const mappedMemories = items
                 .map((r: any) => ({
-                    id: -1, // No ID for remote memories
+                    id: r.document_id || r.id || -1, // Use document_id for deletion if available
+                    documentId: r.document_id,
                     characterId,
                     content: r.text || r.content, // Handle potential API variations
 
