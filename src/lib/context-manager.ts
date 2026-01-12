@@ -251,14 +251,9 @@ NSFW: NSFW/Smut is allowed.`;
 
         // Response Style Selection
         if (responseStyle === 'short') {
-            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Respond with 2 or 3 sentences. Use emojis to express emotion. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
+            systemPromptParts.push(`You are ${charName}. You are exchanging text messages with ${userName}. Write ${charName}'s next reply. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Respond with 2 or 3 sentences. Use emojis to express emotion. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         } else {
-            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.\n\n${imageGenInstruction}`);
-        }
-
-        // Inject at start if history is short
-        if (history.length < 8) {
-            systemPromptParts.push(imageGenInstruction);
+            systemPromptParts.push(`You are ${charName}, a roleplay character. You are interacting with ${userName}. Write ${charName}'s next reply in a fictional roleplay. Reply as ${charName} only. Memories of past events and interactions are provided below. Use them to inform your responses. Responses should be short and conversational. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         }
 
         // Character Description
@@ -282,11 +277,6 @@ NSFW: NSFW/Smut is allowed.`;
         if (character.scenario) {
             systemPromptParts.push(`${replaceVariables(character.scenario)}`);
         }
-
-
-        // This block was moved/modified above
-        // let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
-        // systemPromptParts.push(characterIntro);
 
         // This block was moved/modified above
         // if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
@@ -356,13 +346,17 @@ NSFW: NSFW/Smut is allowed.`;
                 const diffMin = Math.floor(diffSec / 60);
                 const diffHour = Math.floor(diffMin / 60);
                 const diffDay = Math.floor(diffHour / 24);
+                const diffWeek = Math.floor(diffDay / 7);
+                const diffMonth = Math.floor(diffDay / 30);
                 const diffYear = Math.floor(diffDay / 365);
 
                 let timeAgo = '';
-                if (diffYear > 0) timeAgo = `${diffYear}y ago`;
-                else if (diffDay > 0) timeAgo = `${diffDay}d ago`;
-                else if (diffHour > 0) timeAgo = `${diffHour}h ago`;
-                else if (diffMin > 0) timeAgo = `${diffMin}m ago`;
+                if (diffYear > 0) timeAgo = `${diffYear}years ago`;
+                else if (diffMonth > 0) timeAgo = `${diffMonth}months ago`;
+                else if (diffWeek > 0) timeAgo = `${diffWeek}weeks ago`;
+                else if (diffDay > 0) timeAgo = `${diffDay}days ago`;
+                else if (diffHour > 0) timeAgo = `${diffHour}hours ago`;
+                else if (diffMin > 0) timeAgo = `${diffMin}minutes ago`;
                 else timeAgo = 'just now';
 
                 return `[${timeAgo}] ${replaceVariables(m.content)}`;
@@ -370,11 +364,18 @@ NSFW: NSFW/Smut is allowed.`;
             systemPromptParts.push(`[Memories]\n${memoryText}`);
         }
 
+        systemPromptParts.push(`[Instruction]`);
+        systemPromptParts.push(`Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`);
         if (responseStyle === 'short') {
             systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Responses should be short and concise. Use markdown. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         } else {
             systemPromptParts.push(`You are ${charName}. Reply as ${charName} only. Italicize actions and descriptions, and avoid quotation marks. Use markdown. Responses should be short and conversational. Use ellipses (...) for pauses and commas for natural breaks in speech to convey emotion.`);
         }
+        // Inject at start if history is short
+        if (history.length < 8) {
+            systemPromptParts.push(imageGenInstruction);
+        }
+
         systemPromptParts.push(`[Begin Roleplay]`);
         const systemContent = systemPromptParts.join('\n');
 

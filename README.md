@@ -56,9 +56,9 @@ For the best experience (and to match the intended design), we recommend using t
   - *Why?* Efficiently sorts relevant memories for better context.
 - **Text-to-Speech**: [F5-TTS](https://huggingface.co/SWivid/F5-TTS) (Base v1)
   - *Why?* State-of-the-art zero-shot voice cloning and emotive speech.
-- **Image Generation**: [RealCartoon Realistic v17](https://civitai.com/models/97259)
+- **Image Generation**: [RealCartoon Realistic v17](https://prompthero.com/ai-models/realcartoon-realistic-download/v17)
   - *Why?* Consistent, high-quality semi-realistic anime style.
-- **Video Generation**: [Wan 2.1 Image2Video](https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-480P)
+- **Video Generation**: [Wan 2.2 Image2Video](https://huggingface.co/QuantStack/Wan2.2-I2V-A14B-GGUF)
   - *Why?* Capable of animating static character images into convincing loops.
 
 ## Installation

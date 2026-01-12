@@ -40,6 +40,11 @@ fi
 
 read -p "Enter ComfyUI absolute path (Default: $DEFAULT_COMFY_ROOT): " INPUT_COMFY_ROOT
 COMFYUI_ROOT=${INPUT_COMFY_ROOT:-$DEFAULT_COMFY_ROOT}
+
+# Normalize path to remove .. and ensure absolute path
+if command -v realpath >/dev/null 2>&1; then
+    COMFYUI_ROOT=$(realpath "$COMFYUI_ROOT")
+fi
 echo "Using ComfyUI Root: $COMFYUI_ROOT"
 
 # Detect Python for Comfy

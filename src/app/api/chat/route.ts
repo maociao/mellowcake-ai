@@ -269,8 +269,21 @@ export async function POST(request: NextRequest) {
         if (userMsgCount > 0 && userMsgCount % 3 === 0) {
             Logger.debug(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
             const currentPersonaName = persona?.name || 'User';
+
+            // Generate for Assistant Character
             memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
                 .catch(err => Logger.error('Memory generation failed:', err));
+
+            // Generate for Linked Persona (if applicable)
+            if (persona && (persona as any).characterId) {
+                const linkedCharId = (persona as any).characterId;
+                // Ensure we don't double-generate if persona is linked to the SAME character (unlikely but possible loops)
+                if (linkedCharId !== character.id) {
+                    Logger.debug(`[Chat API] Triggering linked memory generation for Persona Linked Char ${linkedCharId}`);
+                    memoryService.generateMemoryFromChat(linkedCharId, history, memories, lorebookContent, currentPersonaName, character.name)
+                        .catch(err => Logger.error('Linked memory generation failed:', err));
+                }
+            }
         } else {
             Logger.debug(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
         }
