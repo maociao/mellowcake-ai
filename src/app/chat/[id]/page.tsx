@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -268,6 +268,7 @@ export default function ChatPage() {
     // --- Memory Editor Component ---
     function MemoryEditor({ characterId }: { characterId: number }) {
         const [memories, setMemories] = useState<any[]>([]);
+        const [viewingGroup, setViewingGroup] = useState<any | null>(null);
         const [loading, setLoading] = useState(true);
         const [isCreating, setIsCreating] = useState(false);
         const [newContent, setNewContent] = useState('');
@@ -350,14 +351,31 @@ export default function ChatPage() {
         };
 
         const deleteMemory = async (id: string | number) => {
-            if (!confirm('Delete this memory?')) return;
+            if (!confirm('Delete this grouped memory document?')) return;
             try {
-                const res = await fetch(`/api/memories/${id}?characterId=${characterId}`, { method: 'DELETE' });
+                const res = await fetch(`/api/memories/${id}?characterId=${characterId}&mode=document`, { method: 'DELETE' });
                 if (res.ok) fetchMemories();
             } catch (e) {
                 Logger.error('Delete memory error:', e);
             }
         };
+
+        // Grouping Logic: Group by documentId. If missing, treat as single item.
+        const groupedMemories = useMemo(() => {
+            const groups: { [key: string]: any[] } = {};
+            memories.forEach(mem => {
+                const key = mem.documentId || mem.id;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(mem);
+            });
+            return Object.values(groups).map(items => ({
+                id: items[0].documentId || items[0].id,
+                items,
+                isDocument: !!items[0].documentId,
+                primaryContent: items[0].content, // Show first item's content
+                timestamp: items[0].createdAt
+            }));
+        }, [memories]);
 
         return (
             <div className="space-y-4">
@@ -408,23 +426,46 @@ export default function ChatPage() {
                 </div>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {loading ? <p className="text-gray-400">Loading...</p> : memories.map(mem => (
-                        <div key={mem.id} className="bg-gray-700 p-3 rounded flex justify-between items-start group">
-                            <div>
-                                <div className="text-sm text-white mb-1">{mem.content}</div>
+                    {loading ? <p className="text-gray-400">Loading...</p> : groupedMemories.map((group: any) => (
+                        <div key={group.id} className="bg-gray-700 p-3 rounded flex justify-between items-start group">
+                            <div className="flex-1">
+                                <div className="text-sm text-white mb-1">
+                                    {group.items.length > 1 && (
+                                        <span className="bg-blue-900 text-blue-200 text-xs px-1.5 py-0.5 rounded mr-2">
+                                            {group.items.length} chunks
+                                        </span>
+                                    )}
+                                    {group.primaryContent}
+                                </div>
 
-                                <div className="text-[10px] text-gray-500">
-                                    {new Date(mem.createdAt).toLocaleString()}
+                                <div className="text-[10px] text-gray-500 flex gap-2 items-center">
+                                    <span>{new Date(group.timestamp).toLocaleString()}</span>
+                                    {group.items.length > 1 && (
+                                        <button
+                                            onClick={() => setViewingGroup(group)}
+                                            className="text-blue-400 hover:text-blue-300 hover:underline italic bg-transparent border-0 p-0 cursor-pointer"
+                                        >
+                                            + {group.items.length - 1} related memories
+                                        </button>
+                                    )}
                                 </div>
                             </div>
-                            <button onClick={() => deleteMemory(mem.documentId || mem.id)} className="text-red-400 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                </svg>
-                            </button>
+
+                            {/* ONLY show delete button if it's a document (has chunk_id/documentId) */}
+                            {group.isDocument && (
+                                <button
+                                    onClick={() => deleteMemory(group.id)}
+                                    className="text-red-400 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 ml-2"
+                                    title="Delete entire conversation/document"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
                     ))}
-                    {!loading && memories.length === 0 && <p className="text-gray-500 text-center">No memories found.</p>}
+                    {!loading && groupedMemories.length === 0 && <p className="text-gray-500 text-center">No memories found.</p>}
                 </div>
 
                 {/* Pagination Controls */}
@@ -448,6 +489,44 @@ export default function ChatPage() {
                             >
                                 Next
                             </button>
+                        </div>
+                    </div>
+                )}
+                {/* View Group Modal */}
+                {viewingGroup && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full shadow-xl border border-gray-700 max-h-[80vh] flex flex-col">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-white">
+                                    Related Memories ({viewingGroup.items.length})
+                                </h3>
+                                <button
+                                    onClick={() => setViewingGroup(null)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+                                {viewingGroup.items.map((mem: any) => (
+                                    <div key={mem.id} className="bg-gray-700/50 p-3 rounded border border-gray-600">
+                                        <p className="text-sm text-gray-200 whitespace-pre-wrap">{mem.content}</p>
+                                        <p className="text-[10px] text-gray-500 mt-1">{new Date(mem.createdAt).toLocaleString()}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 flex justify-end">
+                                <button
+                                    onClick={() => setViewingGroup(null)}
+                                    className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded text-sm"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
