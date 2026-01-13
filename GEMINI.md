@@ -56,6 +56,18 @@ Mellowcake AI is a sophisticated AI character chat application built as a Progre
   - `lorebooks`, `lorebook_entries` (World Info)
   - `memories` (Legacy/Staging for Hindsight)
 
+### 6. Memory System Architecture
+- **Engine**: Hindsight (Vector + Graph hybrid).
+- **Reprocessing**:
+  - The `reprocess` command in `scripts/manage-memories.ts` allows retroactively generating memories from old chat sessions.
+  - **Timestamps**: Uses the original `created_at` timestamp from chat messages to ensure historical accuracy in the memory graph.
+  - **Context**: Analyses a window of the last 8 messages (triggering every 3 user messages) to capture full context.
+  - **Sanitization**: Automatically strips `[GENERATE_IMAGE:...]` tags and markdown images to prevent visual hallucination injection into the text memory.
+- **Import/Export**:
+  - Validates JSON structure (Array of documents).
+  - Handles large backups with safety confirmations and busy states in the UI.
+
+
 ### 3. Coding Standards
 - **Components**:
   - Default to **Server Components**.

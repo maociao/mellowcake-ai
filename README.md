@@ -206,9 +206,17 @@ This will install and enable:
 ## Utility Tasks
 
 ### Memory Management ([manage-memories.ts](./scripts/manage-memories.ts))
-Inspect and delete individual Hindsight memories using the CLI.
-- **List memories**: `npx tsx scripts/manage-memories.ts list <character_id>`
-- **Delete memory**: `npx tsx scripts/manage-memories.ts delete <character_id> <document_id>`
+Inspect, manage, and reprocess Hindsight memories using the CLI.
+
+- **List Chat Sessions**: `npx tsx scripts/manage-memories.ts list-sessions <character_id>`
+- **Reprocess Memories**: `npx tsx scripts/manage-memories.ts reprocess <character_id> <session_id>`
+  - *Note*: Reprocessing scans chat history, generates new memories using the original timestamps, and intelligently handles context.
+- **List Memories**: `npx tsx scripts/manage-memories.ts list <character_id>`
+- **Delete Single Memory**: `npx tsx scripts/manage-memories.ts delete <character_id> <document_id>`
+- **Clear All Memories**: `npx tsx scripts/manage-memories.ts clear <character_id>`
+  - *Warning*: Irreversible.
+- **Export Memories**: `npx tsx scripts/manage-memories.ts export <character_id> [output_file.json]`
+- **Import Memories**: `npx tsx scripts/manage-memories.ts import <character_id> <input_file.json>`
 
 ### Bank Sync ([sync-banks.ts](./scripts/sync-banks.ts))
 Updates the Hindsight Memory Bank configuration (Name, Personality, Dispositions) for **all** characters based on the character personalities and backgrounds in the database.
