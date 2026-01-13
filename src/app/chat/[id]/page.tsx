@@ -2325,7 +2325,7 @@ export default function ChatPage() {
                             {/* Lorebooks */}
                             <div>
                                 <div className="flex justify-between items-center mb-2">
-                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Memory Books</h3>
+                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Lore Books</h3>
                                     <button onClick={() => setShowLorebookManage(true)} className="text-xs text-blue-400 hover:text-blue-300">Manage</button>
                                 </div>
                                 <div className="space-y-2">
@@ -2403,7 +2403,7 @@ export default function ChatPage() {
                     <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                         <div className="bg-gray-800 rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold">Manage Memory Books</h2>
+                                <h2 className="text-xl font-bold">Manage Lore Books</h2>
                                 <button onClick={() => {
                                     setShowLorebookManage(false);
                                     setEditingLorebook(null);
