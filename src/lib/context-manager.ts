@@ -152,7 +152,7 @@ export const contextManager = {
             const sortedEntries = [...lorebookContent].sort((a, b) =>
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             );
-            const formattedEntries = sortedEntries.map(entry => `[World Info]: ${entry.content}`);
+            const formattedEntries = sortedEntries.map(entry => entry.content);
             systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
         }
 
@@ -296,31 +296,7 @@ NSFW: NSFW/Smut is allowed.`;
             const sortedEntries = [...lorebookContent].sort((a, b) =>
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             );
-
-            const formattedEntries = sortedEntries.map(entry => {
-                const date = new Date(entry.createdAt);
-                const now = new Date();
-                const diffMs = now.getTime() - date.getTime();
-
-                // Simple relative time formatter
-                const diffSec = Math.floor(diffMs / 1000);
-                const diffMin = Math.floor(diffSec / 60);
-                const diffHour = Math.floor(diffMin / 60);
-                const diffDay = Math.floor(diffHour / 24);
-                const diffMonth = Math.floor(diffDay / 30);
-                const diffYear = Math.floor(diffDay / 365);
-
-                let timeAgo = '';
-                if (diffYear > 0) timeAgo = `${diffYear} year${diffYear > 1 ? 's' : ''} ago`;
-                else if (diffMonth > 0) timeAgo = `${diffMonth} month${diffMonth > 1 ? 's' : ''} ago`;
-                else if (diffDay > 0) timeAgo = `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
-                else if (diffHour > 0) timeAgo = `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
-                else if (diffMin > 0) timeAgo = `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
-                else timeAgo = 'just now';
-
-                return `[${timeAgo}]: ${entry.content}`;
-            });
-
+            const formattedEntries = sortedEntries.map(entry => entry.content);
             systemPromptParts.push(`[World Info]\n${formattedEntries.join('\n')}`);
         }
 
@@ -351,12 +327,12 @@ NSFW: NSFW/Smut is allowed.`;
                 const diffYear = Math.floor(diffDay / 365);
 
                 let timeAgo = '';
-                if (diffYear > 0) timeAgo = `${diffYear}years ago`;
-                else if (diffMonth > 0) timeAgo = `${diffMonth}months ago`;
-                else if (diffWeek > 0) timeAgo = `${diffWeek}weeks ago`;
-                else if (diffDay > 0) timeAgo = `${diffDay}days ago`;
-                else if (diffHour > 0) timeAgo = `${diffHour}hours ago`;
-                else if (diffMin > 0) timeAgo = `${diffMin}minutes ago`;
+                if (diffYear > 0) timeAgo = `${diffYear} years ago`;
+                else if (diffMonth > 0) timeAgo = `${diffMonth} months ago`;
+                else if (diffWeek > 0) timeAgo = `${diffWeek} weeks ago`;
+                else if (diffDay > 0) timeAgo = `${diffDay} days ago`;
+                else if (diffHour > 0) timeAgo = `${diffHour} hours ago`;
+                else if (diffMin > 0) timeAgo = `${diffMin} minutes ago`;
                 else timeAgo = 'just now';
 
                 return `[${timeAgo}] ${replaceVariables(m.content)}`;

@@ -271,6 +271,7 @@ export default function ChatPage() {
         const [viewingGroup, setViewingGroup] = useState<any | null>(null);
         const [loading, setLoading] = useState(true);
         const [isCreating, setIsCreating] = useState(false);
+        const [importing, setImporting] = useState(false);
         const [newContent, setNewContent] = useState('');
 
         // Pagination & Search
@@ -360,6 +361,69 @@ export default function ChatPage() {
             }
         };
 
+        const exportMemories = () => {
+            window.location.href = `/api/memories/export?characterId=${characterId}`;
+        };
+
+        const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            if (!confirm(`Importing "${file.name}". This process may take several minutes for large backups. Continue?`)) {
+                e.target.value = '';
+                return;
+            }
+
+            setImporting(true);
+
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const content = ev.target?.result as string;
+                    const documents = JSON.parse(content);
+                    if (!Array.isArray(documents)) {
+                        alert('Invalid file format: Root must be an array of documents.');
+                        return;
+                    }
+
+                    const res = await fetch('/api/memories/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ characterId, documents })
+                    });
+
+                    if (res.ok) {
+                        const result = await res.json();
+                        alert(`Import complete. Success: ${result.success}, Failed: ${result.failed}`);
+                        fetchMemories();
+                    } else {
+                        alert('Import failed.');
+                    }
+                } catch (e) {
+                    alert('Failed to read or parse file.');
+                } finally {
+                    setImporting(false);
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset
+        };
+
+        const clearBank = async () => {
+            if (!confirm('DANGER: This will delete ALL memories for this character. This action is IRREVERSIBLE. Are you sure?')) return;
+            try {
+                const res = await fetch(`/api/memories/bank?characterId=${characterId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    alert('Memory bank cleared.');
+                    fetchMemories();
+                } else {
+                    alert('Failed to clear bank.');
+                }
+            } catch (e) {
+                Logger.error('Clear bank error:', e);
+            }
+        };
+
         // Grouping Logic: Group by documentId. If missing, treat as single item.
         const groupedMemories = useMemo(() => {
             const groups: { [key: string]: any[] } = {};
@@ -379,6 +443,46 @@ export default function ChatPage() {
 
         return (
             <div className="space-y-4">
+                {/* Data Management Actions */}
+                <div className="flex flex-wrap gap-2 justify-end mb-4 border-b border-gray-700 pb-4">
+                    <button
+                        onClick={exportMemories}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center gap-2"
+                        title="Download all memories as JSON"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Export
+                    </button>
+
+                    <label className={`bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded text-sm flex items-center gap-2 cursor-pointer transition-colors ${importing ? 'opacity-70 cursor-not-allowed pointer-events-none' : ''}`}>
+                        {importing ? (
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                            </svg>
+                        )}
+                        {importing ? 'Importing...' : 'Import'}
+                        <input type="file" accept=".json" onChange={handleImport} className="hidden" disabled={importing} />
+                    </label>
+
+                    <button
+                        onClick={clearBank}
+                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm flex items-center gap-2"
+                        title="Delete entire memory bank"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                        Clear Bank
+                    </button>
+                </div>
+
                 <div className="bg-gray-700 p-4 rounded">
                     <h4 className="font-bold mb-2">Add New Memory</h4>
                     <form onSubmit={createMemory} className="space-y-2">

@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { memories } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { Logger } from '@/lib/logger';
+import { stripImageCommands } from '@/lib/text-utils';
 import { HindsightClient } from '@vectorize-io/hindsight-client';
 
 const hindsightUrl = process.env.HINDSIGHT_API_URL || 'http://localhost:8888';
@@ -101,7 +102,7 @@ export const memoryService = {
         const MIN_SCORE = 0.25;
 
         try {
-            Logger.info(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
+            Logger.debug(`[Memory Service] Recalling from bank ${bankId} with query: "${query}"`);
             const results = await client.recall(bankId, query) as any;
 
             // Transform Hindsight results to match Application's memory structure
@@ -148,15 +149,19 @@ export const memoryService = {
         existingMemories: { content: string }[] = [], // Unused in new flow
         lorebookContent: { content: string }[] = [], // Unused in new flow
         personaName: string = 'User',
-        characterName: string = 'Assistant'
+        characterName: string = 'Assistant',
+        overrideTimestamp?: Date
     ) {
         const bankId = `character_${characterId}`;
 
         // Extract recent user messages or significant interaction
-        const recentMessages = chatHistory.slice(-4);
+        // Extract recent user messages or significant interaction
+        // Increased slice to -8 to ensure coverage of the 6-message trigger interval (every 3 turns)
+        // plus overlap to avoid gaps.
+        const recentMessages = chatHistory.slice(-8);
         const textToAnalyze = recentMessages.map(m => {
             const roleName = m.name ? m.name : (m.role === 'user' ? personaName : characterName);
-            return `${roleName}: ${m.content}`;
+            return `${roleName}: ${stripImageCommands(m.content)}`;
         }).join('\n');
 
         if (!textToAnalyze) return null;
@@ -166,7 +171,7 @@ export const memoryService = {
         try {
             await client.retain(bankId, textToAnalyze, {
                 context: "chat_history",
-                timestamp: new Date()
+                timestamp: overrideTimestamp || new Date()
             });
             return true;
         } catch (error) {
@@ -227,6 +232,91 @@ export const memoryService = {
         // Would need delete + add, but we need bankId/characterId context which isn't passed here.
         Logger.warn('[Memory Service] Update memory not supported for Hindsight yet.');
         return [];
+    },
+
+    /**
+     * Fetches ALL documents for a character, handling pagination.
+     * Useful for export.
+     */
+    async getAllDocuments(characterId: number) {
+        const bankId = `character_${characterId}`;
+        let allDocs: any[] = [];
+        let offset = 0;
+        const limit = 100;
+        let hasMore = true;
+
+        try {
+            while (hasMore) {
+                const response = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}/documents?limit=${limit}&offset=${offset}`);
+                if (!response.ok) {
+                    if (response.status === 404) break; // Bank doesn't exist
+                    throw new Error(`Failed to list documents: ${response.statusText}`);
+                }
+                const data = await response.json();
+                const items = data.items || [];
+
+                // Fetch details for each to get content
+                for (const doc of items) {
+                    try {
+                        const detailRes = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}/documents/${doc.id}`);
+                        if (detailRes.ok) {
+                            const detail = await detailRes.json();
+                            allDocs.push({
+                                id: detail.id,
+                                content: detail.original_text || detail.content || '',
+                                created_at: detail.created_at,
+                                metadata: detail.metadata
+                            });
+                        }
+                    } catch (e) {
+                        Logger.warn(`[Memory Service] Failed to fetch details for doc ${doc.id}`, e);
+                    }
+                }
+
+                if (items.length < limit) {
+                    hasMore = false;
+                } else {
+                    offset += limit;
+                }
+            }
+            return allDocs;
+        } catch (error) {
+            Logger.error(`[Memory Service] Failed to get all documents for ${bankId}:`, error);
+            throw error;
+        }
+    },
+
+    /**
+     * Imports a list of documents into the character's memory bank.
+     */
+    async importDocuments(characterId: number, documents: any[]) {
+        const bankId = `character_${characterId}`;
+        let successCount = 0;
+        let failCount = 0;
+
+        // Ensure bank exists first
+        try {
+            await client.getBankProfile(bankId);
+        } catch (e) {
+            // If bank doesn't exist, we might need to create it, but usually retain creates it?
+            // Safest to just try retaining.
+        }
+
+        for (const doc of documents) {
+            if (!doc.content) continue;
+            try {
+                // If the doc has a specific timestamp, we can try to honor it if the API supports it in options.
+                // Assuming standard retain for now.
+                // Note: ID restoration isn't supported by Hindsight retain usually (it generates new IDs).
+                // So this is a content import, not a perfect state restore.
+                await client.retain(bankId, doc.content);
+                successCount++;
+            } catch (error) {
+                Logger.error(`[Memory Service] Failed to import document for ${bankId}:`, error);
+                failCount++;
+            }
+        }
+        return { success: successCount, failed: failCount };
     },
 
     /**
