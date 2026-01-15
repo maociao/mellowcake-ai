@@ -7,6 +7,7 @@ import Link from 'next/link';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { VoiceBankModal } from '@/components/VoiceBankModal';
 import { AvatarPicker } from '@/components/AvatarPicker';
+import { PersonaAvatarPicker } from '@/components/PersonaAvatarPicker';
 import { useSettingsStore } from '@/lib/store/settings-store';
 import { Logger } from '@/lib/logger';
 import { stripImageCommands } from '@/lib/text-utils';
@@ -115,6 +116,7 @@ export default function ChatPage() {
     const [editScenario, setEditScenario] = useState('');
     const [editFirstMessage, setEditFirstMessage] = useState('');
     const [showPersonaEdit, setShowPersonaEdit] = useState<Persona | 'new' | null>(null);
+    const [editPersonaAvatar, setEditPersonaAvatar] = useState<string | null>(null); // New state for Persona Avatar Helper
     const [showLorebookManage, setShowLorebookManage] = useState(false);
     const [editingLorebook, setEditingLorebook] = useState<Lorebook | 'new' | null>(null);
     const [editingEntry, setEditingEntry] = useState<LorebookEntry | 'new' | null>(null);
@@ -1996,6 +1998,13 @@ export default function ChatPage() {
         }
     }, [showCharEdit, character]);
 
+    // Sync Persona Edit State
+    useEffect(() => {
+        if (showPersonaEdit) {
+            setEditPersonaAvatar(typeof showPersonaEdit === 'string' ? null : showPersonaEdit.avatarPath || null);
+        }
+    }, [showPersonaEdit]);
+
     if (!character) {
         return <div className="p-4 text-center text-white">Loading...</div>;
     }
@@ -2365,7 +2374,10 @@ export default function ChatPage() {
                                     <textarea name="description" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.description : ''} rows={3} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
                                 <div>
-                                    <input name="avatarPath" defaultValue={typeof showPersonaEdit !== 'string' ? showPersonaEdit.avatarPath : ''} className="w-full bg-gray-700 rounded p-2 text-white" placeholder="/personas/my-avatar.png" />
+                                    <PersonaAvatarPicker
+                                        currentAvatar={editPersonaAvatar}
+                                        onAvatarChange={setEditPersonaAvatar}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400">Linked Character (for memories)</label>

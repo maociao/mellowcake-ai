@@ -77,10 +77,13 @@ export async function POST(req: NextRequest) {
             // Resolve file path (sourceImage is a URL path like /api/avatars/file.png or /characters/file.png)
             const urlName = path.basename(sourceImage);
 
-            // Check public/temp then public/characters
+            // Check public/temp then public/characters then public/personas
             let localPath = path.join(process.cwd(), 'public', 'temp', urlName);
             if (!fs.existsSync(localPath)) {
                 localPath = path.join(process.cwd(), 'public', 'characters', urlName);
+            }
+            if (!fs.existsSync(localPath)) {
+                localPath = path.join(process.cwd(), 'public', 'personas', urlName);
             }
 
             if (!fs.existsSync(localPath)) {

@@ -7,6 +7,8 @@ const DB_PATH = path.join(__dirname, '../mellowcake.db');
 const PUBLIC_DIR = path.join(__dirname, '../public');
 const AUDIO_CACHE_DIR = path.join(PUBLIC_DIR, 'audio-cache');
 const IMAGEN_CACHE_DIR = path.join(PUBLIC_DIR, 'imagen-cache');
+const CHARACTERS_DIR = path.join(PUBLIC_DIR, 'characters');
+const PERSONAS_DIR = path.join(PUBLIC_DIR, 'personas');
 const LOG_FILE = path.join(__dirname, '../backups/cleanup.log'); // Or just stdout
 
 // Ensure directories exist
@@ -91,7 +93,6 @@ function cleanup() {
     for (const file of audioFiles) {
         if (!referencedAudio.has(file)) {
             // Check if it's very recent (grace period) - e.g. 1 hour
-            // This prevents deleting files that are currently being generated/uploaded but not yet saved to DB
             const filePath = path.join(AUDIO_CACHE_DIR, file);
             const stats = fs.statSync(filePath);
             const ageMs = Date.now() - stats.mtimeMs;
@@ -99,7 +100,6 @@ function cleanup() {
             if (ageMs > 3600000) { // 1 hour
                 fs.unlinkSync(filePath);
                 audioDeleted++;
-                // log(`Deleted orphaned audio: ${file}`);
             }
         }
     }
@@ -113,7 +113,6 @@ function cleanup() {
 
     for (const file of imageFiles) {
         if (!referencedImages.has(file)) {
-            // Grace period
             const filePath = path.join(IMAGEN_CACHE_DIR, file);
             const stats = fs.statSync(filePath);
             const ageMs = Date.now() - stats.mtimeMs;
@@ -121,11 +120,37 @@ function cleanup() {
             if (ageMs > 3600000) { // 1 hour
                 fs.unlinkSync(filePath);
                 imagesDeleted++;
-                // log(`Deleted orphaned image: ${file}`);
             }
         }
     }
-    log(`Deleted ${imagesDeleted} orphaned image files.`);
+    log(`Deleted ${imagesDeleted} orphaned image files from cache.`);
+
+    // 5. Cleanup Characters and Personas
+    const protectedFiles = new Set(['placeholder.png', 'user-default.png', 'default_Assistant.png']);
+    const dirsToClean = [
+        { path: CHARACTERS_DIR, name: 'characters' },
+        { path: PERSONAS_DIR, name: 'personas' }
+    ];
+
+    for (const dir of dirsToClean) {
+        const files = getAllFiles(dir.path);
+        let deleted = 0;
+        log(`Found ${files.length} files in ${dir.name}.`);
+
+        for (const file of files) {
+            if (!referencedImages.has(file) && !protectedFiles.has(file)) {
+                const filePath = path.join(dir.path, file);
+                const stats = fs.statSync(filePath);
+                const ageMs = Date.now() - stats.mtimeMs;
+
+                if (ageMs > 3600000) { // 1 hour grace period
+                    fs.unlinkSync(filePath);
+                    deleted++;
+                }
+            }
+        }
+        log(`Deleted ${deleted} orphaned files from ${dir.name}.`);
+    }
     log('Cleanup completed.');
 }
 

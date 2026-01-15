@@ -54,15 +54,21 @@ export async function GET(req: NextRequest) {
 
             if (!response.ok) throw new Error('Failed to download image');
 
-            // Save to public/imagen-cache
+            // Save to destination
+            const folder = searchParams.get('folder');
+            let saveDir = path.join(process.cwd(), 'public', 'imagen-cache');
+
+            if (folder === 'personas') {
+                saveDir = path.join(process.cwd(), 'public', 'personas');
+            }
+
             // Create directory if not exists
-            const cacheDir = path.join(process.cwd(), 'public', 'imagen-cache');
-            if (!fs.existsSync(cacheDir)) {
-                fs.mkdirSync(cacheDir, { recursive: true });
+            if (!fs.existsSync(saveDir)) {
+                fs.mkdirSync(saveDir, { recursive: true });
             }
 
             const savedFilename = `img_${Date.now()}_${filename}`;
-            const savedPath = path.join(cacheDir, savedFilename);
+            const savedPath = path.join(saveDir, savedFilename);
 
             // @ts-ignore
             await streamPipeline(response.body, fs.createWriteStream(savedPath));

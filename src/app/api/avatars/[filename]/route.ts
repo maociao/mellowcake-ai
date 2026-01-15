@@ -20,6 +20,12 @@ export async function GET(
         const filePath = path.join(process.cwd(), 'public', 'characters', filename);
 
         if (!fs.existsSync(filePath)) {
+            // Check personas folder
+            const personaPath = path.join(process.cwd(), 'public', 'personas', filename);
+            if (fs.existsSync(personaPath)) {
+                return serveFile(personaPath, filename);
+            }
+
             // Check imagen-cache folder
             const cachePath = path.join(process.cwd(), 'public', 'imagen-cache', filename);
             if (fs.existsSync(cachePath)) {

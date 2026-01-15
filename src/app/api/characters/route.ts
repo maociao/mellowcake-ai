@@ -23,11 +23,23 @@ export async function POST(request: NextRequest) {
         // Handle Avatar Move (Temp -> Final)
         // Check if avatarPath matches our temp pattern: /api/avatars/avatar_... or /api/avatars/upload_...
         // AND verify the file is actually in the temp directory
-        if (body.avatarPath && (body.avatarPath.startsWith('/api/avatars/avatar_') || body.avatarPath.startsWith('/api/avatars/upload_'))) {
+        // Check if avatarPath matches our temp/generated pattern
+        if (body.avatarPath && (
+            body.avatarPath.startsWith('/api/avatars/avatar_') ||
+            body.avatarPath.startsWith('/api/avatars/upload_') ||
+            body.avatarPath.startsWith('/api/avatars/img_')
+        )) {
             const filename = body.avatarPath.replace('/api/avatars/', '');
-            const tempPath = path.join(process.cwd(), 'public', 'temp', filename);
+            let tempPath = path.join(process.cwd(), 'public', 'temp', filename);
+            let found = fs.existsSync(tempPath);
 
-            if (fs.existsSync(tempPath)) {
+            // If not in temp, check imagen-cache (for generated images)
+            if (!found) {
+                tempPath = path.join(process.cwd(), 'public', 'imagen-cache', filename);
+                found = fs.existsSync(tempPath);
+            }
+
+            if (found) {
                 // Ensure characters dir exists
                 const charDir = path.join(process.cwd(), 'public', 'characters');
                 if (!fs.existsSync(charDir)) {

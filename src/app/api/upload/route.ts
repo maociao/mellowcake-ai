@@ -22,15 +22,21 @@ export async function POST(request: NextRequest) {
             return new NextResponse('Invalid file type', { status: 400 });
         }
 
-        // Create temp dir
-        const tempDir = path.join(process.cwd(), 'public', 'temp');
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
+        const folder = formData.get('folder') as string;
+
+        let saveDir = path.join(process.cwd(), 'public', 'temp');
+        if (folder === 'personas') {
+            saveDir = path.join(process.cwd(), 'public', 'personas');
+        }
+
+        if (!fs.existsSync(saveDir)) {
+            fs.mkdirSync(saveDir, { recursive: true });
         }
 
         const ext = path.extname(file.name) || '.png';
-        const filename = `upload_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}${ext}`;
-        const filePath = path.join(tempDir, filename);
+        const prefix = folder === 'personas' ? 'persona_' : 'upload_';
+        const filename = `${prefix}${Date.now()}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}${ext}`;
+        const filePath = path.join(saveDir, filename);
 
         // Save file
         // @ts-ignore
