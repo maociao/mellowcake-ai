@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Logger } from '@/lib/logger';
+import { HelpTooltip } from '@/components/ui/HelpTooltip';
 
 interface AvatarPickerProps {
     currentAvatar: string | null;
@@ -29,7 +30,7 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
     }
 
     const canGenerate = generateContext && generateContext.trim().length > 0;
-    const showPreview = preview && preview !== '/placeholder.png';
+    const showPreview = !!(preview && preview !== '/placeholder.png');
 
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -142,7 +143,10 @@ export function AvatarPicker({ currentAvatar, onAvatarChange, generateContext }:
     return (
         <div>
             <div className="flex justify-between items-center mb-1">
-                <label className="text-sm font-medium text-gray-400">Avatar</label>
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-400">Avatar</label>
+                    <HelpTooltip text="Upload an existing image, or generate a new one based on your character's appearance and personality." />
+                </div>
                 {showPreview && (
                     <label className="flex items-center space-x-2 text-xs text-gray-400 cursor-pointer hover:text-gray-300">
                         <input

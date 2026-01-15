@@ -2,6 +2,7 @@
 
 import { useSettingsStore } from '@/lib/store/settings-store';
 import { useState, useEffect } from 'react';
+import { HelpTooltip } from '@/components/ui/HelpTooltip';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -17,7 +18,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white">LLM Tuning</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-white">LLM Tuning</h2>
+                        <HelpTooltip text="Configure advanced language model parameters to control creativity and response style." side="right" />
+                    </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -32,7 +36,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         {/* Global Short Temp */}
                         <div>
                             <div className="flex justify-between mb-1">
-                                <label className="text-sm font-medium text-gray-300">Global Short Temp</label>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-gray-300">Global Short Temp</label>
+                                    <HelpTooltip text="Controls creativity for short, punchy responses. Lower values are more deterministic." />
+                                </div>
                                 <span className="text-sm text-blue-400">{settings.defaultShortTemperature ?? 0.7}</span>
                             </div>
                             <input
@@ -49,7 +56,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         {/* Global Long Temp */}
                         <div>
                             <div className="flex justify-between mb-1">
-                                <label className="text-sm font-medium text-gray-300">Global Long Temp</label>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-gray-300">Global Long Temp</label>
+                                    <HelpTooltip text="Controls creativity for longer, storytelling responses. Slightly higher values often work better for narrative flow." />
+                                </div>
                                 <span className="text-sm text-blue-400">{settings.defaultLongTemperature ?? 1.12}</span>
                             </div>
                             <input
@@ -87,7 +97,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Temperature */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Temperature</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Temperature</label>
+                                <HelpTooltip text="The main control for randomness. Higher (1.0+) is more creative/chaotic, lower (0.1-0.7) is more logical/focused." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.temperature}</span>
                         </div>
                         <input
@@ -105,7 +118,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Top P */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Top P</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Top P</label>
+                                <HelpTooltip text="Nucleus Sampling. Considers the top tokens whose probabilities add up to P. Lower values (e.g. 0.9) exclude unlikely words." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.top_p}</span>
                         </div>
                         <input
@@ -123,7 +139,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Top K */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Top K</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Top K</label>
+                                <HelpTooltip text="Hard limit on vocabulary. Only considers the top K most likely words for each step." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.top_k}</span>
                         </div>
                         <input
@@ -141,7 +160,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Min P */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Min P</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Min P</label>
+                                <HelpTooltip text="Sets a minimum probability threshold relative to the most likely token. Helps remove nonsensical options." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.min_p}</span>
                         </div>
                         <input
@@ -159,7 +181,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Num Predict */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Num Predict (Max Tokens)</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Num Predict (Max Tokens)</label>
+                                <HelpTooltip text="The maximum number of tokens the model can generate in a single response." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.num_predict}</span>
                         </div>
                         <input
@@ -176,7 +201,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Trim Length */}
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-sm font-medium text-gray-300">Trim Length (Chars)</label>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-300">Trim Length (Chars)</label>
+                                <HelpTooltip text="Soft limit. Attempts to end the generation at a sentence boundary near this length to prevent cut-offs." />
+                            </div>
                             <span className="text-sm text-blue-400">{settings.trimLength}</span>
                         </div>
                         <input

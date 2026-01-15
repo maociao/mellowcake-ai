@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AvatarPicker } from './AvatarPicker';
 import { Logger } from '@/lib/logger';
+import { HelpTooltip } from '@/components/ui/HelpTooltip';
 
 interface CharacterCreateModalProps {
     isOpen: boolean;
@@ -66,7 +67,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white">Create Character</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-white">Create Character</h2>
+                        <HelpTooltip text="Define your new AI character here. Providing detailed information helps the AI roleplay more effectively." side="right" />
+                    </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -95,7 +99,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Appearance (Age, gender, features)</label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-400">Appearance (Age, gender, features)</label>
+                            <HelpTooltip text="Physical description used for both self-awareness in chat and generating images." />
+                        </div>
                         <input
                             name="appearance"
                             value={appearance}
@@ -106,7 +113,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Personality <span className="text-red-500">*</span></label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-400">Personality <span className="text-red-500">*</span></label>
+                            <HelpTooltip text="Traits and demeanor. E.g. 'Sarcastic, witty, cares deeply about friends.' Defines the speaking style." />
+                        </div>
                         <textarea
                             name="personality"
                             required
@@ -119,7 +129,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Background Story <span className="text-red-500">*</span></label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-400">Background Story <span className="text-red-500">*</span></label>
+                            <HelpTooltip text="The character's history, secrets, and motivations. This provides deep context that may not come up immediately but shapes their worldview." />
+                        </div>
                         <textarea
                             name="description"
                             required
@@ -132,7 +145,10 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Scenario</label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-400">Scenario</label>
+                            <HelpTooltip text="The setting or immediate context for the first chat. E.g. 'You meet in a tavern.' or 'You are stuck in an elevator together.'" />
+                        </div>
                         <textarea
                             name="scenario"
                             rows={2}
@@ -144,14 +160,17 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">First Message</label>
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-400">First Message</label>
+                            <HelpTooltip text="The greeting message sent when a new chat starts. Use {{user}} to automatically insert the user's name." />
+                        </div>
                         <textarea
                             name="firstMessage"
                             rows={2}
                             value={firstMessage}
                             onChange={(e) => setFirstMessage(e.target.value)}
                             className="w-full bg-gray-700 rounded p-2 text-white"
-                            placeholder="Hello!"
+                            placeholder="Hello, {{user}}!"
                         />
                     </div>
 
