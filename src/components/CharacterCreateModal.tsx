@@ -88,6 +88,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
 
                     <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">Name <span className="text-red-500">*</span></label>
+                        <HelpTooltip text="The display name of the character." side="right" />
                         <input
                             name="name"
                             required
@@ -101,7 +102,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <label className="block text-sm font-medium text-gray-400">Appearance (Age, gender, features)</label>
-                            <HelpTooltip text="Physical description used for both self-awareness in chat and generating images." />
+                            <HelpTooltip text="Physical description used for both self-awareness in chat and generating images." side="right" />
                         </div>
                         <input
                             name="appearance"
@@ -115,7 +116,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <label className="block text-sm font-medium text-gray-400">Personality <span className="text-red-500">*</span></label>
-                            <HelpTooltip text="Traits and demeanor. E.g. 'Sarcastic, witty, cares deeply about friends.' Defines the speaking style." />
+                            <HelpTooltip text="Traits and demeanor. E.g. 'Sarcastic, witty, cares deeply about friends.' Defines the speaking style." side="right" />
                         </div>
                         <textarea
                             name="personality"
@@ -131,7 +132,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <label className="block text-sm font-medium text-gray-400">Background Story <span className="text-red-500">*</span></label>
-                            <HelpTooltip text="The character's history, secrets, and motivations. This provides deep context that may not come up immediately but shapes their worldview." />
+                            <HelpTooltip text="The character's history, secrets, and motivations. This provides deep context that may not come up immediately but shapes their worldview." side="right" />
                         </div>
                         <textarea
                             name="description"
@@ -147,7 +148,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <label className="block text-sm font-medium text-gray-400">Scenario</label>
-                            <HelpTooltip text="The setting or immediate context for the first chat. E.g. 'You meet in a tavern.' or 'You are stuck in an elevator together.'" />
+                            <HelpTooltip text="The setting or immediate context for the first chat. E.g. 'You meet in a tavern.' or 'You are stuck in an elevator together.'" side="right" />
                         </div>
                         <textarea
                             name="scenario"
@@ -162,7 +163,7 @@ export function CharacterCreateModal({ isOpen, onClose, onCreated }: CharacterCr
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <label className="block text-sm font-medium text-gray-400">First Message</label>
-                            <HelpTooltip text="The greeting message sent when a new chat starts. Use {{user}} to automatically insert the user's name." />
+                            <HelpTooltip text="The greeting message sent when a new chat starts. Use {{user}} to automatically insert the user's name." side="right" />
                         </div>
                         <textarea
                             name="firstMessage"

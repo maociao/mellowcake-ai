@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
         logger.logMetric('context_usage_pct', (rawPrompt.length / (contextLimit * 4)) * 100);
 
         // Check Context Usage & Summarize if needed (e.g., > 80% usage)
-        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.95; // Using 4 chars per token as a safer estimate
+        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.90; // Using 4 chars per token as a safer estimate
 
         if (rawPrompt.length > SAFE_CHAR_LIMIT) {
             Logger.warn(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);

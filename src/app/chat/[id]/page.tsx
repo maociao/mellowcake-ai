@@ -11,6 +11,7 @@ import { PersonaAvatarPicker } from '@/components/PersonaAvatarPicker';
 import { useSettingsStore } from '@/lib/store/settings-store';
 import { Logger } from '@/lib/logger';
 import { stripImageCommands } from '@/lib/text-utils';
+import { HelpTooltip } from '@/components/ui/HelpTooltip';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -861,7 +862,10 @@ export default function ChatPage() {
                     )}
 
                     <div className="mb-6 p-4 bg-gray-800 rounded">
-                        <label className="block text-sm font-medium text-gray-400 mb-2">Voice Speed: {speed.toFixed(1)}x</label>
+                        <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                            Voice Speed: {speed.toFixed(1)}x
+                            <HelpTooltip text="Adjust the speaking rate of the generated voice. 1.0 is normal speed." side="top" />
+                        </label>
                         <input
                             type="range"
                             min="0.5"
@@ -2111,14 +2115,20 @@ export default function ChatPage() {
                                     generateContext={editAppearance + ' ' + editPersonality}
                                 />
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400">Name <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                        Name <span className="text-red-500">*</span>
+                                        <HelpTooltip text="The display name of the character." side="right" />
+                                    </label>
                                     <input name="name" required defaultValue={character.name} className="w-full bg-gray-700 rounded p-2 text-white" />
                                 </div>
 
                                 {/* Appearance */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-sm font-medium text-gray-400">Appearance</label>
+                                        <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                            Appearance
+                                            <HelpTooltip text="Physical description used for both self-awareness in chat and generating images." side="right" />
+                                        </label>
                                         <GenerateButton trait="appearance" />
                                     </div>
                                     <input
@@ -2133,7 +2143,10 @@ export default function ChatPage() {
                                 {/* Personality */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-sm font-medium text-gray-400">Personality</label>
+                                        <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                            Personality
+                                            <HelpTooltip text="Traits and demeanor. E.g. 'Sarcastic, witty, cares deeply about friends.' Defines the speaking style." side="right" />
+                                        </label>
                                         <GenerateButton trait="personality" />
                                     </div>
                                     <textarea
@@ -2148,7 +2161,10 @@ export default function ChatPage() {
                                 {/* Background Story */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-sm font-medium text-gray-400">Background Story</label>
+                                        <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                            Background Story
+                                            <HelpTooltip text="The character's history, secrets, and motivations. This provides deep context that may not come up immediately but shapes their worldview." side="right" />
+                                        </label>
                                         <GenerateButton trait="description" />
                                     </div>
                                     <textarea
@@ -2163,7 +2179,10 @@ export default function ChatPage() {
                                 {/* Scenario */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-sm font-medium text-gray-400">Scenario</label>
+                                        <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                            Scenario
+                                            <HelpTooltip text="The setting or immediate context for the first chat. E.g. 'You meet in a tavern.' or 'You are stuck in an elevator together.'" side="right" />
+                                        </label>
                                         <GenerateButton trait="scenario" />
                                     </div>
                                     <textarea
@@ -2178,7 +2197,10 @@ export default function ChatPage() {
                                 {/* First Message */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-sm font-medium text-gray-400">First Message</label>
+                                        <label className="block text-sm font-medium text-gray-400 flex items-center gap-2">
+                                            First Message
+                                            <HelpTooltip text="The greeting message sent when a new chat starts. Use {{user}} to automatically insert the user's name." side="right" />
+                                        </label>
                                         <GenerateButton trait="firstMessage" />
                                     </div>
                                     <textarea
@@ -2192,7 +2214,10 @@ export default function ChatPage() {
 
                                 {/* Default Lorebooks */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Default Lorebooks</label>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
+                                        Default Lorebooks
+                                        <HelpTooltip text="Lorebooks to automatically enable when creating a new session with this character." side="right" />
+                                    </label>
                                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded">
                                         {lorebooks.map(lb => (
                                             <label key={lb.id} className="flex items-center space-x-2 p-1 hover:bg-gray-600 rounded cursor-pointer">
@@ -2251,7 +2276,10 @@ export default function ChatPage() {
 
                             {/* Personas */}
                             <div className="mb-6">
-                                <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2">Response Style</h3>
+                                <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    Response Style
+                                    <HelpTooltip text="Controls the length and formatting of the character's responses." side="right" />
+                                </h3>
                                 <div className="flex bg-gray-700 rounded p-1 mb-6">
                                     <button
                                         onClick={() => handleResponseStyleChange('short')}
@@ -2270,7 +2298,10 @@ export default function ChatPage() {
                                 {/* Temp Overrides */}
                                 <div className="mb-6 grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-400 mb-1">Short Temp</label>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-1 flex items-center gap-1">
+                                            Short Temp
+                                            <HelpTooltip text="Controls creativity for short, punchy responses. Lower values are more deterministic." side="top" />
+                                        </label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -2285,7 +2316,10 @@ export default function ChatPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-400 mb-1">Long Temp</label>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-1 flex items-center gap-1">
+                                            Long Temp
+                                            <HelpTooltip text="Controls creativity for longer, storytelling responses. Slightly higher values often work better for narrative flow." side="top" />
+                                        </label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -2302,7 +2336,10 @@ export default function ChatPage() {
                                 </div>
 
                                 <div className="flex justify-between items-center mb-2">
-                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Persona</h3>
+                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider flex items-center gap-2">
+                                        Persona
+                                        <HelpTooltip text="Select the persona you want to roleplay as." side="right" />
+                                    </h3>
                                     <button onClick={() => setShowPersonaEdit('new')} className="text-xs text-blue-400 hover:text-blue-300">+ New</button>
                                 </div>
                                 <div className="space-y-2">
@@ -2334,7 +2371,10 @@ export default function ChatPage() {
                             {/* Lorebooks */}
                             <div>
                                 <div className="flex justify-between items-center mb-2">
-                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider">Lore Books</h3>
+                                    <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider flex items-center gap-2">
+                                        Lore Books
+                                        <HelpTooltip text="Enable Lorebooks to provide extra knowledge/context to the AI." side="right" />
+                                    </h3>
                                     <button onClick={() => setShowLorebookManage(true)} className="text-xs text-blue-400 hover:text-blue-300">Manage</button>
                                 </div>
                                 <div className="space-y-2">
