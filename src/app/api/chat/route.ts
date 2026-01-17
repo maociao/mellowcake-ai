@@ -239,26 +239,65 @@ export async function POST(request: NextRequest) {
         const [assistantMsg] = await chatService.addMessage(sessionId, 'assistant', responseContent, promptUsed, character.name);
         Logger.debug(`[Chat API] Saved assistant message ${assistantMsg.id}`);
 
-        // 7. Generate new memory (async, don't block response)
-        // Only generate memory every 5 turns (every 5th user message)
+        // 7. Generate new memory and Prune History
+        // Only generate memory every 3 turns (every 3rd user message)
         const userMsgCount = history.filter(m => m.role === 'user').length;
         if (userMsgCount > 0 && userMsgCount % 3 === 0) {
             Logger.debug(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
+
+            // Fetch updated history to include the new assistant message
+            const updatedHistory = await chatService.getMessages(sessionId);
             const currentPersonaName = persona?.name || 'User';
 
-            // Generate for Assistant Character
-            memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name)
-                .catch(err => Logger.error('Memory generation failed:', err));
+            try {
+                // Generate for Assistant Character
+                // Use 'history' (excludes latest assistant response) to prevent memory mismatch on regeneration
+                await memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name);
 
-            // Generate for Linked Persona (if applicable)
-            if (persona && (persona as any).characterId) {
-                const linkedCharId = (persona as any).characterId;
-                // Ensure we don't double-generate if persona is linked to the SAME character (unlikely but possible loops)
-                if (linkedCharId !== character.id) {
-                    Logger.debug(`[Chat API] Triggering linked memory generation for Persona Linked Char ${linkedCharId}`);
-                    memoryService.generateMemoryFromChat(linkedCharId, history, memories, lorebookContent, currentPersonaName, character.name)
-                        .catch(err => Logger.error('Linked memory generation failed:', err));
+                // Generate for Linked Persona (if applicable)
+                if (persona && (persona as any).characterId) {
+                    const linkedCharId = (persona as any).characterId;
+                    // Ensure we don't double-generate if persona is linked to the SAME character
+                    if (linkedCharId !== character.id) {
+                        Logger.debug(`[Chat API] Triggering linked memory generation for Persona Linked Char ${linkedCharId}`);
+                        await memoryService.generateMemoryFromChat(linkedCharId, history, memories, lorebookContent, currentPersonaName, character.name);
+                    }
                 }
+
+                // 8. Prune History (Optional)
+                // If RETAIN_CHAT_HISTORY is false (default), we prune to keep context focused.
+                if (!CONFIG.RETAIN_CHAT_HISTORY) {
+                    // Prune based on User Message Count to guarantee the cycle (Keep last 3 User messages + responses)
+                    // This ensures the next trigger happens in exactly 3 turns.
+                    const userMessages = updatedHistory.filter(m => m.role === 'user');
+                    const TARGET_USER_COUNT = 3;
+
+                    if (userMessages.length > TARGET_USER_COUNT) {
+                        // Find the ID of the 3rd to last user message
+                        // We want to keep that message and everything after it.
+                        // The userMessages array is ordered old->new.
+                        // The 3rd from last is at index: length - 3.
+                        const cutoffUserMsg = userMessages[userMessages.length - TARGET_USER_COUNT];
+
+                        // Find its index in the full history
+                        const cutoffIndex = updatedHistory.findIndex(m => m.id === cutoffUserMsg.id);
+
+                        if (cutoffIndex > 0) {
+                            const messagesToDelete = updatedHistory.slice(0, cutoffIndex);
+                            const idsToDelete = messagesToDelete.map(m => m.id);
+
+                            if (idsToDelete.length > 0) {
+                                await chatService.deleteMessages(idsToDelete);
+                                Logger.info(`[Chat API] Pruned history to last ${TARGET_USER_COUNT} user turns. Deleted ${idsToDelete.length} old messages.`);
+                            }
+                        }
+                    }
+                } else {
+                    Logger.debug('[Chat API] Skipping history pruning (RETAIN_CHAT_HISTORY enabled)');
+                }
+
+            } catch (err) {
+                Logger.error('[Chat API] Memory generation or pruning failed:', err);
             }
         } else {
             Logger.debug(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);

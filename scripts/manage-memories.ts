@@ -21,6 +21,7 @@ async function main() {
         console.log("  npx tsx scripts/manage-memories.ts export <character_id> [output_file]");
         console.log("  npx tsx scripts/manage-memories.ts import <character_id> <input_file>");
         console.log("  npx tsx scripts/manage-memories.ts clear <character_id>");
+        console.log("  npx tsx scripts/manage-memories.ts profile <character_id>");
         process.exit(1);
     }
 
@@ -281,6 +282,24 @@ async function main() {
             else console.log(`Failed to clear: ${res.status}`);
         } catch (e) {
             console.error("Clear failed:", e);
+        }
+    }
+    else if (command === 'profile') {
+        console.log(`Fetching profile for bank ${bankId}...`);
+        try {
+            const res = await fetch(`${hindsightUrl}/v1/default/banks/${bankId}/profile`);
+            if (res.ok) {
+                const profile = await res.json();
+                console.log(JSON.stringify(profile, null, 2));
+            } else {
+                if (res.status === 404) {
+                    console.log("Bank not found.");
+                } else {
+                    console.error(`Failed to fetch profile: ${res.status} ${await res.text()}`);
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching profile:", e);
         }
     }
     else {
