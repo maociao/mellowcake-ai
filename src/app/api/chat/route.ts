@@ -163,36 +163,90 @@ export async function POST(request: NextRequest) {
         logger.logMetric('context_usage_pct', (rawPrompt.length / (contextLimit * 4)) * 100);
 
         // Check Context Usage & Summarize if needed (e.g., > 80% usage)
-        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.90; // Using 4 chars per token as a safer estimate
+        const SAFE_CHAR_LIMIT = contextLimit * 4 * 0.80; // Using 4 chars per token as a safer estimate
 
         if (rawPrompt.length > SAFE_CHAR_LIMIT) {
-            Logger.warn(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering summarization...`);
+            Logger.warn(`[Chat API] Context usage high (${rawPrompt.length} > ${SAFE_CHAR_LIMIT}). Triggering background summarization...`);
 
-            const MESSAGES_TO_SUMMARIZE = 10;
-            if (history.length > MESSAGES_TO_SUMMARIZE + 5) { // Ensure we leave at least 5 recent messages
-                const chunk = history.slice(0, MESSAGES_TO_SUMMARIZE);
-                const summaryText = await chatService.summarizeHistory(sessionId, chunk);
+            // Fire and Forget Background Task
+            (async () => {
+                try {
+                    const MESSAGES_TO_SUMMARIZE = 10;
+                    if (history.length > MESSAGES_TO_SUMMARIZE + 5) { // Ensure we leave at least 5 recent messages
+                        const chunk = history.slice(0, MESSAGES_TO_SUMMARIZE);
+                        const summaryText = await chatService.summarizeHistory(sessionId, chunk);
 
-                if (summaryText) {
-                    Logger.info(`[Chat API] Generated summary: ${summaryText.substring(0, 50)}...`);
+                        if (summaryText) {
+                            Logger.info(`[Chat API] Background summary generated: ${summaryText.substring(0, 50)}...`);
 
-                    // Append to existing summary
-                    const newSummary = (session.summary ? session.summary + "\n\n" : "") + summaryText;
-                    await chatService.updateSummary(sessionId, newSummary);
+                            // Append to existing summary
+                            const newSummary = (session.summary ? session.summary + "\n\n" : "") + summaryText;
+                            await chatService.updateSummary(sessionId, newSummary);
 
-                    // Delete summarized messages
-                    const idsToDelete = chunk.map(m => m.id);
-                    await chatService.deleteMessages(idsToDelete);
-                    Logger.info(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
+                            // Delete summarized messages
+                            const idsToDelete = chunk.map(m => m.id);
+                            await chatService.deleteMessages(idsToDelete);
+                            Logger.info(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
 
-                    // Persist summary to Lorebook logic REMOVED as per request.
-                    /* 
-                    if (lorebooks && lorebooks.length > 0) {
-                       ...
-                    } 
-                    */
+                            // --- Strategy B: Lorebook Reflection ---
+                            try {
+                                Logger.info(`[Chat API] Triggering Hindsight Reflection for Lorebook...`);
+                                const userName = persona?.name || 'the user';
+                                const reflectionQuery = `Based on the recent interaction, what have I learned about ${userName} and how has my opinion or state changed? Summarize key events and insights for my long-term memory. At the end, list 3-5 relevant keywords for this entry, prefixed with "KEYWORDS:".`;
+                                const reflection = await memoryService.reflect(character.id, reflectionQuery);
+
+                                let reflectionText: string | null = null;
+                                if (reflection) {
+                                    if (typeof reflection === 'string') reflectionText = reflection;
+                                    else if (typeof reflection === 'object') {
+                                        if ('content' in reflection) reflectionText = (reflection as any).content;
+                                        else if ('text' in reflection) reflectionText = (reflection as any).text;
+                                        else reflectionText = JSON.stringify(reflection);
+                                    }
+                                }
+
+                                if (reflectionText && lorebooks && lorebooks.length > 0) {
+                                    // Extract Keywords
+                                    let keywords = ['summary', 'reflection', 'memory'];
+                                    let content = reflectionText;
+
+                                    const keywordMatch = reflectionText.match(/KEYWORDS:(.*)/i);
+                                    if (keywordMatch) {
+                                        const extractedTags = keywordMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
+                                        if (extractedTags.length > 0) {
+                                            keywords = [...keywords, ...extractedTags];
+                                        }
+                                        // Remove keywords line from content to keep it clean
+                                        content = reflectionText.replace(keywordMatch[0], '').trim();
+                                    }
+
+                                    // Target the first available Lorebook (usually the primary one)
+                                    const targetBookName = lorebooks[0];
+                                    const targetBook = await lorebookService.getByName(targetBookName);
+
+                                    if (targetBook) {
+                                        await lorebookService.addEntry(targetBook.id, {
+                                            label: 'Periodic Reflection',
+                                            content: content,
+                                            keywords: JSON.stringify(keywords),
+                                            enabled: true,
+                                            isAlwaysIncluded: false // Let it be dynamic
+                                        });
+                                        Logger.info(`[Chat API] Saved reflection to Lorebook "${targetBookName}"`);
+                                    } else {
+                                        Logger.warn(`[Chat API] Could not find Lorebook "${targetBookName}" to save reflection.`);
+                                    }
+                                }
+                            } catch (err) {
+                                Logger.error(`[Chat API] Failed to generate/save reflection:`, err);
+                            }
+                            // ---------------------------------------
+                        }
+                    }
+                } catch (bgErr) {
+                    Logger.error('[Chat API] Background summarization task failed:', bgErr);
                 }
-            }
+            })();
         }
 
         // Capture the prompt and metadata for debugging
@@ -241,64 +295,66 @@ export async function POST(request: NextRequest) {
 
         // 7. Generate new memory and Prune History
         // Only generate memory every 3 turns (every 3rd user message)
-        const userMsgCount = history.filter(m => m.role === 'user').length;
-        if (userMsgCount > 0 && userMsgCount % 3 === 0) {
-            Logger.debug(`[Chat API] Triggering memory generation (User messages: ${userMsgCount})`);
+        // We use the persistent userTurnCount from the session + 1 (for the current message)
+        const currentTurnCount = ((session.userTurnCount || 0) + 1);
+
+        if (currentTurnCount > 0 && currentTurnCount % 3 === 0) {
+            Logger.debug(`[Chat API] Triggering memory generation (Turn Count: ${currentTurnCount})`);
 
             // Fetch updated history to include the new assistant message
-            const updatedHistory = await chatService.getMessages(sessionId);
             const currentPersonaName = persona?.name || 'User';
 
-            try {
-                // Generate for Assistant Character
-                // Use 'history' (excludes latest assistant response) to prevent memory mismatch on regeneration
-                await memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name);
+            // Run Memory Generation & Pruning in Background (Fire & Forget)
+            (async () => {
+                try {
+                    // Generate for Assistant Character
+                    // Use 'history' (pre-response) as requested to exclude the latest assistant response
+                    Logger.debug(`[Chat API] background memory task started for ${character.name}`);
+                    await memoryService.generateMemoryFromChat(character.id, history, memories, lorebookContent, currentPersonaName, character.name);
 
-                // Generate for Linked Persona (if applicable)
-                if (persona && (persona as any).characterId) {
-                    const linkedCharId = (persona as any).characterId;
-                    // Ensure we don't double-generate if persona is linked to the SAME character
-                    if (linkedCharId !== character.id) {
-                        Logger.debug(`[Chat API] Triggering linked memory generation for Persona Linked Char ${linkedCharId}`);
-                        await memoryService.generateMemoryFromChat(linkedCharId, history, memories, lorebookContent, currentPersonaName, character.name);
-                    }
-                }
-
-                // 8. Prune History (Optional)
-                // If RETAIN_CHAT_HISTORY is false (default), we prune to keep context focused.
-                if (!CONFIG.RETAIN_CHAT_HISTORY) {
-                    // Prune based on User Message Count to guarantee the cycle (Keep last 3 User messages + responses)
-                    // This ensures the next trigger happens in exactly 3 turns.
-                    const userMessages = updatedHistory.filter(m => m.role === 'user');
-                    const TARGET_USER_COUNT = 3;
-
-                    if (userMessages.length > TARGET_USER_COUNT) {
-                        // Find the ID of the 3rd to last user message
-                        // We want to keep that message and everything after it.
-                        // The userMessages array is ordered old->new.
-                        // The 3rd from last is at index: length - 3.
-                        const cutoffUserMsg = userMessages[userMessages.length - TARGET_USER_COUNT];
-
-                        // Find its index in the full history
-                        const cutoffIndex = updatedHistory.findIndex(m => m.id === cutoffUserMsg.id);
-
-                        if (cutoffIndex > 0) {
-                            const messagesToDelete = updatedHistory.slice(0, cutoffIndex);
-                            const idsToDelete = messagesToDelete.map(m => m.id);
-
-                            if (idsToDelete.length > 0) {
-                                await chatService.deleteMessages(idsToDelete);
-                                Logger.info(`[Chat API] Pruned history to last ${TARGET_USER_COUNT} user turns. Deleted ${idsToDelete.length} old messages.`);
-                            }
+                    // Generate for Linked Persona (if applicable)
+                    if (persona && (persona as any).characterId) {
+                        const linkedCharId = (persona as any).characterId;
+                        // Ensure we don't double-generate if persona is linked to the SAME character
+                        if (linkedCharId !== character.id) {
+                            Logger.debug(`[Chat API] Triggering linked memory generation for Persona Linked Char ${linkedCharId}`);
+                            await memoryService.generateMemoryFromChat(linkedCharId, history, memories, lorebookContent, currentPersonaName, character.name);
                         }
                     }
-                } else {
-                    Logger.debug('[Chat API] Skipping history pruning (RETAIN_CHAT_HISTORY enabled)');
-                }
 
-            } catch (err) {
-                Logger.error('[Chat API] Memory generation or pruning failed:', err);
-            }
+                    // 8. Prune History (Optional)
+                    // If RETAIN_CHAT_HISTORY is false (default), we prune to keep context focused.
+                    if (!CONFIG.RETAIN_CHAT_HISTORY) {
+                        // Re-fetch history to ensure we prune based on the absolutely latest state including the new assistant msg
+                        const updatedHistory = await chatService.getMessages(sessionId);
+
+                        // Prune based on User Message Count to guarantee the cycle (Keep last 3 User messages + responses)
+                        // This ensures the next trigger happens in exactly 3 turns.
+                        const userMessages = updatedHistory.filter(m => m.role === 'user');
+                        const TARGET_USER_COUNT = 3;
+
+                        if (userMessages.length > TARGET_USER_COUNT) {
+                            // Find the ID of the 3rd to last user message
+                            const cutoffUserMsg = userMessages[userMessages.length - TARGET_USER_COUNT];
+                            const cutoffIndex = updatedHistory.findIndex(m => m.id === cutoffUserMsg.id);
+
+                            if (cutoffIndex > 0) {
+                                const messagesToDelete = updatedHistory.slice(0, cutoffIndex);
+                                const idsToDelete = messagesToDelete.map(m => m.id);
+
+                                if (idsToDelete.length > 0) {
+                                    await chatService.deleteMessages(idsToDelete);
+                                    Logger.info(`[Chat API] Pruned history to last ${TARGET_USER_COUNT} user turns. Deleted ${idsToDelete.length} old messages.`);
+                                }
+                            }
+                        }
+                    } else {
+                        Logger.debug('[Chat API] Skipping history pruning (RETAIN_CHAT_HISTORY enabled)');
+                    }
+                } catch (err) {
+                    Logger.error('[Chat API] Background memory task failed:', err);
+                }
+            })(); // Invoke immediately un-awaited
         } else {
             Logger.debug(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
         }

@@ -54,96 +54,48 @@ export async function POST(request: NextRequest) {
         logger.endTimer('preprocessing');
         logger.startTimer('memory_search');
 
-        const { memories, total } = await memoryService.searchMemories(character.id, query);
+        let memories: any[] = [];
+        let total = 0;
 
-        // Calculate Memory Age Stats
-        if (memories.length > 0) {
-            const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
-            logger.calculateAgeStats(validDates, 'memory');
-        }
-
-        // If persona is linked to a DIFFERENT character, fetch their memories too
+        // If persona is linked to a DIFFERENT character, fetch their memories
         let linkedCharacter = null;
         if (persona && (persona as any).characterId) {
             // Fetch the actual linked character object
             if ((persona as any).characterId !== character.id) {
                 Logger.debug(`[Impersonate API] Fetching linked character ${(persona as any).characterId}`);
                 linkedCharacter = await characterService.getById((persona as any).characterId);
-
-                if (linkedCharacter) {
-                    const { memories: linkedMemories } = await memoryService.searchMemories(linkedCharacter.id, query);
-                    if (linkedMemories.length > 0) {
-                        Logger.debug(`[Impersonate API] Found ${linkedMemories.length} linked memories`);
-                        memories.length = 0;
-                        memories.push(...linkedMemories);
-                    }
-                }
             } else {
                 // Linked to SAME character (unlikely but possible)
                 linkedCharacter = character;
             }
+        }
 
-            // Re-sort memories
-            if (memories.length > 0) {
-                memories.sort((a: any, b: any) => {
-                    if (b.score !== a.score) return b.score - a.score;
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                });
+        // ONLY search memories if there is a linked character.
+        // For standard personas (acting as User), injecting main character memories causes hallucinations
+        // where the user "remembers" things the character knows.
+        if (linkedCharacter) {
+            Logger.debug(`[Impersonate API] Searching linked memories for character ${linkedCharacter.id}`);
+            const result = await memoryService.searchMemories(linkedCharacter.id, query);
+            memories = result.memories;
+            total = result.total;
 
-                // Track dropped memories due to hard limit
-                // Note: totalFound only tracks PRIMARY character memories total.
-                // Note: total only tracks PRIMARY character memories total.
-                // We should technically add linked total? But let's stick to simple for now:
-                // Total = total (primary) + linkedFound? 
-                // Currently I didn't capture linked total. That's fine for now, "Total" usually implies "Available matches".
-                // Let's rely on total.
-
-                // Track dropped
-                const currentCount = memories.length;
-                logger.logMetric('context_memories_total', total); // This is just primary... maybe misleading if we add linked?
-
-                // If we add linked memories, the "pool" is bigger.
-                // Ideally searchMemories for linked returns its total too.
-                // For now, let's just log what we have.
-
-                if (memories.length > 25) {
-                    memories.length = 25;
-                    // Dropped is (primary total + linked inserted) - 10? 
-                    // This metric is getting tricky with merged lists.
-                    // Let's simplify: Dropped = (Total Candidates) - (Final Included)
-                    // Total Candidates approx = totalFound + linkedMemories.length
-
-                    // Actually, let's just use the final logic:
-                    // We don't have total linked count (just the top N returned). 
-                    // Let's just log the metrics based on primary search for consistency with other routes?
-                    // But here we explicitly want to support linked.
-
-                    // Let's just log context_memories_dropped as (total - included).
-                    const dropped = total - 25; // Rough estimate
-                    logger.logMetric('context_memories_dropped', dropped > 0 ? dropped : 0);
-                    if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
-                } else {
-                    const dropped = total > memories.length ? total - memories.length : 0;
-                    logger.logMetric('context_memories_dropped', dropped);
-                    if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
-                }
-            } else {
-                logger.logMetric('context_memories_total', 0);
-            }
-        } else {
             logger.logMetric('context_memories_total', total);
             const dropped = total > memories.length ? total - memories.length : 0;
             logger.logMetric('context_memories_dropped', dropped);
             if (total > 0) logger.logMetric('context_memories_dropped_pct', (dropped / total) * 100);
-        }
 
-        // Calculate Final Memory Stats (Age & Score)
-        if (memories.length > 0) {
-            const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
-            logger.calculateAgeStats(validDates, 'memory');
+            // Calculate Memory Age Stats
+            if (memories.length > 0) {
+                const validDates = memories.map((m: any) => m.createdAt).filter((d: any): d is string => d !== null);
+                logger.calculateAgeStats(validDates, 'memory');
 
-            const scores = memories.map((m: any) => m.score);
-            logger.calculateScoreStats(scores, 'memory');
+                const scores = memories.map((m: any) => m.score);
+                logger.calculateScoreStats(scores, 'memory');
+            }
+        } else {
+            Logger.debug('[Impersonate API] Standard Persona: Skipping memory search to prevent hallucinations.');
+            logger.logMetric('context_memories_total', 0);
+            logger.logMetric('context_memories_dropped', 0);
         }
 
         logger.endTimer('memory_search');

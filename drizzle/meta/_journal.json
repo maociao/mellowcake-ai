@@ -57,6 +57,13 @@
       "when": 1767754984292,
       "tag": "0007_redundant_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1768752389572,
+      "tag": "0008_dear_daredevil",
+      "breakpoints": true
     }
   ]
 }

@@ -10,109 +10,60 @@ import { CONFIG } from '@/config';
 
 export async function POST(req: NextRequest) {
     try {
-        const { characterId, trait, currentAttributes } = await req.json();
+        const { characterId, trait } = await req.json();
 
         if (!characterId || !trait) {
             return NextResponse.json({ error: 'Missing characterId or trait' }, { status: 400 });
         }
 
-        // 1. Fetch Character (to get name)
+        // Fetch Character to get name
         const [char] = await db.select().from(characters).where(eq(characters.id, characterId));
         if (!char) {
             return NextResponse.json({ error: 'Character not found' }, { status: 404 });
         }
 
-        // 2. Fetch Memories (Context)
-        let memoriesToUse: any[] = [];
-        let source = 'recent';
-
-        // Strategy A: Context-Aware Search (if trait has content)
-        const currentTraitValue = currentAttributes[trait];
-        if (currentTraitValue && typeof currentTraitValue === 'string' && currentTraitValue.length > 5) {
-            const searchRes = await memoryService.searchMemories(characterId, currentTraitValue, 25);
-            if (searchRes.memories.length > 0) {
-                memoriesToUse = searchRes.memories;
-                source = 'search';
-            }
-        }
-
-        // Strategy B: Fallback to Recent (if search failed or no trait content)
-        if (memoriesToUse.length === 0) {
-            const allMemories = await memoryService.getMemories(characterId);
-            // Take top 25 recent memories.
-            memoriesToUse = allMemories.slice(0, 25);
-            source = 'recent';
-        }
-
-        // Sort chronologically (oldest to newest) to create a timeline
-        memoriesToUse.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-        const relevantMemories = memoriesToUse
-            .map((m: any) => {
-                const date = new Date(m.createdAt).toLocaleDateString();
-                return `- [${date}] ${m.content}`;
-            })
-            .join('\n');
-
-        if (!relevantMemories) {
-            return NextResponse.json({ error: 'No memories found to generate traits.' }, { status: 400 });
-        }
-
-        Logger.info('Generating trait using memories', { count: memoriesToUse.length, source, characterId });
-
-        // 3. Construct Prompt
-        let systemInstruction = '';
-        let traitLabel = trait;
-
+        let query = '';
         switch (trait) {
             case 'personality':
-                traitLabel = 'Personality';
-                systemInstruction = `Refine the character's personality based on the timeline of recent events and known facts. Keep it CONCISE and direct (max 1-2 sentences). Focus on behaviors and quirks.`;
+                query = "Reflect on {{char}}'s behavior, speech patterns, and specific traits based on recent interactions. What is {{char}}'s personality? Keep it concise. Comma seperated list of up to 10 traits.";
                 break;
             case 'appearance':
-                traitLabel = 'Appearance';
-                systemInstruction = `Give a clinical description of the character's appearance based on the timeline of recent events and known facts. Keep it CONCISE (max 1-2 sentences). Focus on distinctive features.`;
+                query = "Reflect on {{char}}'s physical description based on self-references and feedback. What does {{char}} look like? Keep it concise. Comma seperated list of up to 10 physical traits.";
                 break;
             case 'description':
-                traitLabel = 'Background Story';
-                systemInstruction = `Weave the character's timeline of recent events and known facts into a cohesive background story. Keep it CONCISE (max 1-2 paragraphs)`;
+                query = "Reflect on {{char}}'s life history, key events, relationships, and evolution. Write a cohesive backstory summary in third person point of view (max 2 paragraphs).";
                 break;
             case 'scenario':
-                traitLabel = 'Scenario';
-                systemInstruction = `Describe the character's current situation or immediate context based on the timeline of recent events and known facts. Keep it CONCISE (max 1-2 paragraphs)`;
+                query = "Reflect on {{char}}'s current situation, location, and immediate surroundings based on recent context. What is the setting? Keep it concise.";
                 break;
             case 'firstMessage':
-                traitLabel = 'First Message';
-                systemInstruction = `Write an engaging opening message for a new chat session, reflecting their current state and the timeline of recent events and known facts. In place of the chat user's name use {{user}}. Keep it CONCISE (max 2-3 sentences)`;
+                query = "Reflect on {{char}}'s current state. Write an engaging opening message for a new chat session. Use {{user}} placeholder.";
                 break;
             default:
                 return NextResponse.json({ error: 'Invalid trait type' }, { status: 400 });
         }
 
-        const prompt = `
-You are an expert creative writer assisting in character development.
-Character Name: ${char.name}
-Current ${traitLabel}: ${currentAttributes[trait] || "Not defined"}
+        // Replace placeholder
+        query = query.replaceAll('{{char}}', char.name);
 
-[TIMELINE OF RECENT EVENTS / KNOWN FACTS]
-${relevantMemories}
+        Logger.info(`[Trait Gen] Reflecting on ${trait} for char ${characterId}: "${query}"`);
+        const reflection = await memoryService.reflect(characterId, query);
 
-[INSTRUCTION]
-${systemInstruction}
-Write the content for the character's "${traitLabel}".
-Do not include "Here is the ..." or markdown headers. Just the raw text.
-`;
+        if (!reflection) {
+            return NextResponse.json({ error: 'Failed to generate reflection' }, { status: 500 });
+        }
 
-        // 4. Call LLM
-        // Prefer a smart model
-        const model = CONFIG.OLLAMA_CHAT_MODEL;
+        let resultText = '';
+        if (typeof reflection === 'string') {
+            resultText = reflection;
+        } else if (typeof reflection === 'object') {
+            // Handle Hindsight return types
+            if ('content' in reflection) resultText = (reflection as any).content;
+            else if ('text' in reflection) resultText = (reflection as any).text;
+            else resultText = JSON.stringify(reflection);
+        }
 
-        const response = await llmService.chat(model, [{ role: 'user', content: prompt }]);
-        const result = response?.trim();
-
-        Logger.llm('generate', { trait: traitLabel, prompt, response: result, model });
-
-        return NextResponse.json({ result });
+        return NextResponse.json({ result: resultText });
 
     } catch (error) {
         Logger.error('Error generating trait:', error);

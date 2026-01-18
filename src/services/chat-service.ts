@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schema';
 import { llmService } from './llm-service';
 import { characterService } from './character-service';
-import { eq, desc, asc, gte, and } from 'drizzle-orm';
+import { eq, desc, asc, gte, and, sql } from 'drizzle-orm';
 import { Logger } from '@/lib/logger';
 import { CONFIG } from '@/config';
 
@@ -49,9 +49,15 @@ export const chatService = {
     },
 
     async addMessage(sessionId: number, role: 'user' | 'assistant' | 'system', content: string, promptUsed?: string, name?: string) {
-        // Update session timestamp
+        // Update session timestamp & increment user turn count
+        const updateData: any = { updatedAt: new Date().toISOString() };
+
+        if (role === 'user') {
+            updateData.userTurnCount = sql`${chatSessions.userTurnCount} + 1`;
+        }
+
         await db.update(chatSessions)
-            .set({ updatedAt: new Date().toISOString() })
+            .set(updateData)
             .where(eq(chatSessions.id, sessionId));
 
         return await db.insert(chatMessages).values({
@@ -215,13 +221,30 @@ export const chatService = {
         const targetMsg = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).get();
         if (!targetMsg) return false;
 
-        // 2. Delete this message and all subsequent messages in the same session
-        // We use ID comparison assuming auto-increment IDs reflect chronological order
+        // 2. Count how many USER messages are being deleted (for rewind logic)
+        const messagesToDelete = await db.select().from(chatMessages)
+            .where(and(
+                eq(chatMessages.sessionId, targetMsg.sessionId),
+                gte(chatMessages.id, messageId)
+            ));
+
+        const userMessagesDeleted = messagesToDelete.filter(m => m.role === 'user').length;
+
+        // 3. Delete this message and all subsequent messages in the same session
         await db.delete(chatMessages)
             .where(and(
                 eq(chatMessages.sessionId, targetMsg.sessionId),
                 gte(chatMessages.id, messageId)
             ));
+
+        // 4. Decrement userTurnCount if user messages were deleted
+        if (userMessagesDeleted > 0) {
+            await db.update(chatSessions)
+                .set({ userTurnCount: sql`MAX(0, ${chatSessions.userTurnCount} - ${userMessagesDeleted})` })
+                .where(eq(chatSessions.id, targetMsg.sessionId));
+
+            Logger.info(`[Chat Service] Rewound ${userMessagesDeleted} user turns. Adjusted turn count.`);
+        }
 
         return true;
     },

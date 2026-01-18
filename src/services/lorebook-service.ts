@@ -16,6 +16,10 @@ export const lorebookService = {
         return { ...book, entries };
     },
 
+    async getByName(name: string) {
+        return await db.select().from(lorebooks).where(eq(lorebooks.name, name)).get();
+    },
+
     async create(data: { name: string; description?: string }) {
         const [newBook] = await db.insert(lorebooks).values(data).returning();
         return { ...newBook, entries: [] };

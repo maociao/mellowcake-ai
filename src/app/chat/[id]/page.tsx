@@ -1913,31 +1913,33 @@ export default function ChatPage() {
                         const isGenerating = msg && msg.id && processingImages.current.has(msg.id); // Simple check, ideally check specific image
 
                         result.push(
-                            <div key={`img-${i}`} className="my-2 relative group inline-block max-w-full">
-                                <img src={src} alt={alt} className={`max-w-full h-auto rounded shadow-lg transition-opacity ${isGenerating ? 'opacity-50' : 'opacity-100'}`} />
-                                {isGenerating && <div className="absolute inset-0 flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full"></div></div>}
+                            <div key={`img-${i}`} className="my-2 block max-w-full">
+                                <div className="relative inline-block group max-w-full">
+                                    <img src={src} alt={alt} className={`max-w-full h-auto rounded shadow-lg transition-opacity ${isGenerating ? 'opacity-50' : 'opacity-100'}`} />
+                                    {isGenerating && <div className="absolute inset-0 flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full"></div></div>}
 
-                                <div className="absolute bottom-2 right-2 flex gap-2 transition-opacity bg-black/60 p-1 rounded backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                                    <button
-                                        onClick={() => setViewingPrompt(promptForThisImage)}
-                                        className="text-xs text-white hover:text-blue-300 px-2 py-1"
-                                        title="View Image Prompt"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => msg && msg.id && triggerImageRegeneration(msg.id, promptForThisImage, src)}
-                                        className="text-xs text-white hover:text-green-300 px-2 py-1"
-                                        title="Regenerate Image"
-                                        disabled={!!isGenerating}
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                        </svg>
-                                    </button>
+                                    <div className="absolute bottom-2 right-2 flex gap-2 transition-opacity bg-black/60 p-1 rounded backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                        <button
+                                            onClick={() => setViewingPrompt(promptForThisImage)}
+                                            className="text-xs text-white hover:text-blue-300 px-2 py-1"
+                                            title="View Image Prompt"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={() => msg && msg.id && triggerImageRegeneration(msg.id, promptForThisImage, src)}
+                                            className="text-xs text-white hover:text-green-300 px-2 py-1"
+                                            title="Regenerate Image"
+                                            disabled={!!isGenerating}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         );

@@ -142,7 +142,7 @@ export const contextManager = {
         // Character Description (This is now the "Other" description)
         systemPromptParts.push(`You are talking to ${charName}.`);
 
-        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
+        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${replaceVariables(character.description || '')}`;
         systemPromptParts.push(characterIntro);
 
         if (character.scenario) systemPromptParts.push(`Scenario: ${replaceVariables(character.scenario)}`);
@@ -258,13 +258,13 @@ NSFW: NSFW/Smut is allowed.`;
 
         // Character Description
         systemPromptParts.push(`[Character Info]`);
-        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${charName} ${replaceVariables(character.description || '')}`;
+        let characterIntro = `${charName} is a ${replaceVariables(character.appearance || '')}. who is ${replaceVariables(character.personality || '')}. ${replaceVariables(character.description || '')}`;
         systemPromptParts.push(characterIntro);
 
         // Persona Description (User) - Now supports Linked Character
         systemPromptParts.push(`[User Persona]`);
         if (linkedCharacter) {
-            let userIntro = `${userName} is a ${replaceVariables(linkedCharacter.appearance || '')}. who is ${replaceVariables(linkedCharacter.personality || '')}. ${userName} ${replaceVariables(linkedCharacter.description || '')}`;
+            let userIntro = `${userName} is a ${replaceVariables(linkedCharacter.appearance || '')}. who is ${replaceVariables(linkedCharacter.personality || '')}. ${replaceVariables(linkedCharacter.description || '')}`;
             systemPromptParts.push(userIntro);
         } else if (persona) {
             systemPromptParts.push(`Name: ${userName}\n${replaceVariables(persona.description || '')}`);
