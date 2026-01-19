@@ -188,71 +188,10 @@ export async function POST(request: NextRequest) {
                             await chatService.deleteMessages(idsToDelete);
                             Logger.info(`[Chat API] Deleted ${idsToDelete.length} summarized messages.`);
 
-                            // --- Strategy B: Lorebook Reflection ---
-                            try {
-                                Logger.info(`[Chat API] Triggering Hindsight Reflection for Lorebook...`);
-                                const userName = persona?.name || 'the user';
-                                // Refined prompt focusing on opinions / perspectives
-                                const reflectionQuery = `Based on the recent interaction with ${userName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
-                                const reflection = await memoryService.reflect(character.id, reflectionQuery);
-
-                                let reflectionText: string | null = null;
-                                if (reflection) {
-                                    if (typeof reflection === 'string') reflectionText = reflection;
-                                    else if (typeof reflection === 'object') {
-                                        if ('content' in reflection) reflectionText = (reflection as any).content;
-                                        else if ('text' in reflection) reflectionText = (reflection as any).text;
-                                        else reflectionText = JSON.stringify(reflection);
-                                    }
-                                }
-
-                                if (reflectionText && lorebooks && lorebooks.length > 0) {
-                                    Logger.info(`[Chat API] Reflection generated. Extracting keywords via LLM...`);
-
-                                    // Separate Low-Temp Call for Keywords
-                                    let keywords: string[] = ['summary', 'reflection', 'memory'];
-                                    try {
-                                        const keywordPrompt = `Analyze the following text and extract 3-5 relevant keywords or tags. Return ONLY the keywords as a comma-separated list, nothing else. Do not number them.
-                                        
-Text:
-"${reflectionText}"`;
-
-                                        const keywordRaw = await llmService.generate(
-                                            CONFIG.OLLAMA_CHAT_MODEL,
-                                            keywordPrompt,
-                                            { temperature: 0.1, stop: ['\n'] }
-                                        );
-
-                                        const extracted = keywordRaw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-                                        if (extracted.length > 0) {
-                                            keywords = [...keywords, ...extracted];
-                                        }
-                                        Logger.debug(`[Chat API] Extracted keywords: ${keywords.join(', ')}`);
-                                    } catch (tagErr) {
-                                        Logger.warn(`[Chat API] Failed to extract keywords, using defaults.`, tagErr);
-                                    }
-
-                                    // Target the first available Lorebook (usually the primary one)
-                                    const targetBookName = lorebooks[0];
-                                    const targetBook = await lorebookService.getByName(targetBookName);
-
-                                    if (targetBook) {
-                                        await lorebookService.addEntry(targetBook.id, {
-                                            label: 'Periodic Reflection',
-                                            content: reflectionText,
-                                            keywords: JSON.stringify(keywords),
-                                            enabled: true,
-                                            isAlwaysIncluded: false // Let it be dynamic
-                                        });
-                                        Logger.info(`[Chat API] Saved reflection to Lorebook "${targetBookName}"`);
-                                    } else {
-                                        Logger.warn(`[Chat API] Could not find Lorebook "${targetBookName}" to save reflection.`);
-                                    }
-                                }
-                            } catch (err) {
-                                Logger.error(`[Chat API] Failed to generate/save reflection:`, err);
-                            }
+                            // --- Strategy B: Lorebook Reflection (Restored) ---
+                            await generateLorebookReflection(character.id, persona?.name || 'the user', lorebooks);
                             // ---------------------------------------
+
                         }
                     }
                 } catch (bgErr) {
@@ -370,6 +309,16 @@ Text:
         } else {
             Logger.debug(`[Chat API] Skipping memory generation (History length: ${history.length}, threshold: 3 turns)`);
         }
+
+        // --- Periodic Reflection (Every 20 Turns) ---
+        // ONLY valid if chat history is NOT retained (otherwise summarization handles it)
+        if (!CONFIG.RETAIN_CHAT_HISTORY && currentTurnCount > 0 && currentTurnCount % 13 === 0) {
+            Logger.info(`[Chat API] Triggering Periodic Reflection (Turn ${currentTurnCount})...`);
+            (async () => {
+                await generateLorebookReflection(character.id, persona?.name || 'the user', lorebooks);
+            })();
+        }
+
         logger.endTimer('postprocessing');
 
         logger.endTimer('total');
@@ -380,5 +329,74 @@ Text:
     } catch (error) {
         Logger.error('[Chat API] Error in chat endpoint:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
+    }
+}
+
+/**
+ * Helper to generate a reflection via Hindsight and save it to the Lorebook.
+ */
+async function generateLorebookReflection(characterId: number, userName: string, lorebooks: string[] | null) {
+    try {
+        Logger.info(`[Chat API] Triggering Hindsight Reflection for Lorebook...`);
+        const reflectionQuery = `Based on the recent interaction with ${userName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
+        const reflection = await memoryService.reflect(characterId, reflectionQuery);
+
+        let reflectionText: string | null = null;
+        if (reflection) {
+            if (typeof reflection === 'string') reflectionText = reflection;
+            else if (typeof reflection === 'object') {
+                if ('content' in reflection) reflectionText = (reflection as any).content;
+                else if ('text' in reflection) reflectionText = (reflection as any).text;
+                else reflectionText = JSON.stringify(reflection);
+            }
+        }
+
+        if (reflectionText && lorebooks && lorebooks.length > 0) {
+            Logger.info(`[Chat API] Reflection generated. Extracting keywords via LLM...`);
+
+            // Separate Low-Temp Call for Keywords
+            let keywords: string[] = ['summary', 'reflection', 'memory'];
+            try {
+                const keywordPrompt = `Analyze the following text and extract 3-5 relevant keywords or tags. Return ONLY the keywords as a comma-separated list, nothing else. Do not number them.
+                
+Text:
+"${reflectionText}"`;
+
+                const keywordRaw = await llmService.generate(
+                    CONFIG.OLLAMA_CHAT_MODEL,
+                    keywordPrompt,
+                    { temperature: 0.1, stop: ['\n'] }
+                );
+
+                const extracted = keywordRaw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+                if (extracted.length > 0) {
+                    keywords = [...keywords, ...extracted];
+                }
+                Logger.debug(`[Chat API] Extracted keywords: ${keywords.join(', ')}`);
+            } catch (tagErr) {
+                Logger.warn(`[Chat API] Failed to extract keywords, using defaults.`, tagErr);
+            }
+
+            // Target the first available Lorebook (usually the primary one)
+            const targetBookName = lorebooks[0];
+            const targetBook = await lorebookService.getByName(targetBookName);
+
+            if (targetBook) {
+                await lorebookService.addEntry(targetBook.id, {
+                    label: 'Periodic Reflection',
+                    content: reflectionText,
+                    keywords: JSON.stringify(keywords),
+                    enabled: true,
+                    isAlwaysIncluded: false // Let it be dynamic
+                });
+                Logger.info(`[Chat API] Saved reflection to Lorebook "${targetBookName}"`);
+            } else {
+                Logger.warn(`[Chat API] Could not find Lorebook "${targetBookName}" to save reflection.`);
+            }
+        } else {
+            Logger.info(`[Chat API] No reflection generated or no lorebooks to save to.`);
+        }
+    } catch (err) {
+        Logger.error(`[Chat API] Failed to generate/save reflection:`, err);
     }
 }
