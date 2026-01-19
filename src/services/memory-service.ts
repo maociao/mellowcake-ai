@@ -119,7 +119,10 @@ export const memoryService = {
                 Logger.warn(`[Memory Service] Unexpected recall format:`, results);
             }
 
-            const mappedMemories = items
+            // Transform Hindsight results to match Application's memory structure
+            const topItems = items.slice(0, limit);
+
+            const mappedMemories = topItems
                 .map((r: any) => ({
                     id: r.document_id || r.id || -1, // Use document_id for deletion if available
                     documentId: r.document_id,
@@ -133,8 +136,8 @@ export const memoryService = {
                 .filter(m => m.score >= MIN_SCORE);
 
             return {
-                memories: mappedMemories.slice(0, limit),
-                total: items.length // Total found before filtering
+                memories: mappedMemories,
+                total: items.length // Total found before trimming
             };
 
         } catch (error) {

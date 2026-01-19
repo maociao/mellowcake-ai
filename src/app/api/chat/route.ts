@@ -192,7 +192,8 @@ export async function POST(request: NextRequest) {
                             try {
                                 Logger.info(`[Chat API] Triggering Hindsight Reflection for Lorebook...`);
                                 const userName = persona?.name || 'the user';
-                                const reflectionQuery = `Based on the recent interaction, what have I learned about ${userName} and how has my opinion or state changed? Summarize key events and insights for my long-term memory. At the end, list 3-5 relevant keywords for this entry, prefixed with "KEYWORDS:".`;
+                                // Refined prompt focusing on opinions / perspectives
+                                const reflectionQuery = `Based on the recent interaction with ${userName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
                                 const reflection = await memoryService.reflect(character.id, reflectionQuery);
 
                                 let reflectionText: string | null = null;
@@ -206,18 +207,29 @@ export async function POST(request: NextRequest) {
                                 }
 
                                 if (reflectionText && lorebooks && lorebooks.length > 0) {
-                                    // Extract Keywords
-                                    let keywords = ['summary', 'reflection', 'memory'];
-                                    let content = reflectionText;
+                                    Logger.info(`[Chat API] Reflection generated. Extracting keywords via LLM...`);
 
-                                    const keywordMatch = reflectionText.match(/KEYWORDS:(.*)/i);
-                                    if (keywordMatch) {
-                                        const extractedTags = keywordMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
-                                        if (extractedTags.length > 0) {
-                                            keywords = [...keywords, ...extractedTags];
+                                    // Separate Low-Temp Call for Keywords
+                                    let keywords: string[] = ['summary', 'reflection', 'memory'];
+                                    try {
+                                        const keywordPrompt = `Analyze the following text and extract 3-5 relevant keywords or tags. Return ONLY the keywords as a comma-separated list, nothing else. Do not number them.
+                                        
+Text:
+"${reflectionText}"`;
+
+                                        const keywordRaw = await llmService.generate(
+                                            CONFIG.OLLAMA_CHAT_MODEL,
+                                            keywordPrompt,
+                                            { temperature: 0.1, stop: ['\n'] }
+                                        );
+
+                                        const extracted = keywordRaw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+                                        if (extracted.length > 0) {
+                                            keywords = [...keywords, ...extracted];
                                         }
-                                        // Remove keywords line from content to keep it clean
-                                        content = reflectionText.replace(keywordMatch[0], '').trim();
+                                        Logger.debug(`[Chat API] Extracted keywords: ${keywords.join(', ')}`);
+                                    } catch (tagErr) {
+                                        Logger.warn(`[Chat API] Failed to extract keywords, using defaults.`, tagErr);
                                     }
 
                                     // Target the first available Lorebook (usually the primary one)
@@ -227,7 +239,7 @@ export async function POST(request: NextRequest) {
                                     if (targetBook) {
                                         await lorebookService.addEntry(targetBook.id, {
                                             label: 'Periodic Reflection',
-                                            content: content,
+                                            content: reflectionText,
                                             keywords: JSON.stringify(keywords),
                                             enabled: true,
                                             isAlwaysIncluded: false // Let it be dynamic
