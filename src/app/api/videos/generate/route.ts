@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Prepare Workflow
-        const workflowPath = path.join(process.cwd(), 'mellowcake-ai-wan-image-2-video.json');
+        const workflowPath = path.join(process.cwd(), 'comfy_workflows', 'mellowcake-ai-wan-image-2-video.json');
         const workflowStr = fs.readFileSync(workflowPath, 'utf-8');
         const workflow = JSON.parse(workflowStr);
 

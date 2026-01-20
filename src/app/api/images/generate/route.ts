@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
         Logger.debug(`[Generate API] useImg2Img: ${useImg2Img}, type: ${type}`);
         Logger.debug(`[Generate API] Selected workflow: ${workflowFilename}`);
-        const workflowPath = path.join(process.cwd(), workflowFilename);
+        const workflowPath = path.join(process.cwd(), 'comfy_workflows', workflowFilename);
 
         if (!fs.existsSync(workflowPath)) {
             return NextResponse.json({ error: `Workflow file ${workflowFilename} not found` }, { status: 500 });
