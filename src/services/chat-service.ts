@@ -3,6 +3,9 @@ import { chatSessions, chatMessages, characters, personas } from '@/lib/db/schem
 import { llmService } from './llm-service';
 import { characterService } from './character-service';
 import { eq, desc, asc, gte, and, sql } from 'drizzle-orm';
+import { memoryService } from './memory-service';
+import { lorebookService } from './lorebook-service';
+import { personaService } from './persona-service';
 import { Logger } from '@/lib/logger';
 import { CONFIG } from '@/config';
 
@@ -25,7 +28,7 @@ export const chatService = {
         return [session];
     },
 
-    async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[]; responseStyle?: 'short' | 'long'; shortTemperature?: number; longTemperature?: number }) {
+    async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[]; responseStyle?: 'short' | 'long'; shortTemperature?: number; longTemperature?: number; autoplay?: boolean }) {
         const updateData: any = { ...data, updatedAt: new Date().toISOString() };
         if (data.lorebooks) {
             updateData.lorebooks = JSON.stringify(data.lorebooks);
@@ -289,6 +292,114 @@ Summary: `;
         if (ids.length === 0) return;
         for (const id of ids) {
             await db.delete(chatMessages).where(eq(chatMessages.id, id));
+        }
+    },
+
+    /**
+     * Helper to generate a reflection via Hindsight and save it to the Lorebook.
+     */
+    async generateSessionReflection(sessionId: number) {
+        try {
+            const session = await this.getSessionById(sessionId);
+            if (!session) throw new Error('Session not found');
+
+            const character = await characterService.getById(session.characterId);
+            if (!character) throw new Error('Character not found');
+
+            let userName = 'User';
+            if (session.personaId) {
+                const persona = await personaService.getById(session.personaId);
+                if (persona) userName = persona.name;
+            }
+
+            // Determine lorebooks: Session overrides > Character defaults
+            let lorebooks: string[] = [];
+            if (session.lorebooks) {
+                try {
+                    lorebooks = JSON.parse(session.lorebooks);
+                } catch (e) {
+                    Logger.error('[Chat Service] Failed to parse session lorebooks', e);
+                }
+            } else if (character.lorebooks) {
+                try {
+                    lorebooks = JSON.parse(character.lorebooks);
+                } catch (e) {
+                    Logger.error('[Chat Service] Failed to parse character lorebooks', e);
+                }
+            }
+
+            if (!lorebooks || lorebooks.length === 0) {
+                Logger.info('[Chat Service] No lorebooks linked to session. Skipping reflection.');
+                return null;
+            }
+
+            Logger.info(`[Chat Service] Triggering Hindsight Reflection for Lorebook (Session ${sessionId})...`);
+            const reflectionQuery = `Based on the recent interaction with ${userName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
+
+            const reflection = await memoryService.reflect(character.id, reflectionQuery);
+
+            let reflectionText: string | null = null;
+            if (reflection) {
+                if (typeof reflection === 'string') reflectionText = reflection;
+                else if (typeof reflection === 'object') {
+                    if ('content' in reflection) reflectionText = (reflection as any).content;
+                    else if ('text' in reflection) reflectionText = (reflection as any).text;
+                    else reflectionText = JSON.stringify(reflection);
+                }
+            }
+
+            if (reflectionText) {
+                Logger.info(`[Chat Service] Reflection generated. Extracting keywords via LLM...`);
+
+                // Separate Low-Temp Call for Keywords
+                let keywords: string[] = ['summary', 'reflection', 'memory'];
+                try {
+                    const keywordPrompt = `Analyze the following text and extract 3-5 relevant keywords or tags. Return ONLY the keywords as a comma-separated list, nothing else. Do not number them.
+                    
+    Text:
+    "${reflectionText}"`;
+
+                    const keywordRaw = await llmService.generate(
+                        CONFIG.OLLAMA_CHAT_MODEL,
+                        keywordPrompt,
+                        { temperature: 0.1, stop: ['\n'] }
+                    );
+
+                    const extracted = keywordRaw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+                    if (extracted.length > 0) {
+                        keywords = [...keywords, ...extracted];
+                    }
+                    Logger.debug(`[Chat Service] Extracted keywords: ${keywords.join(', ')}`);
+                } catch (tagErr) {
+                    Logger.warn(`[Chat Service] Failed to extract keywords, using defaults.`, tagErr);
+                }
+
+                // Target the first available Lorebook (usually the primary one)
+                const targetBookName = lorebooks[0];
+                const targetBook = await lorebookService.getByName(targetBookName);
+
+                if (targetBook) {
+                    await lorebookService.addEntry(targetBook.id, {
+                        label: 'Periodic Reflection',
+                        content: reflectionText,
+                        keywords: JSON.stringify(keywords),
+                        weight: 5,
+                        enabled: true,
+                        isAlwaysIncluded: false // Let it be dynamic
+                    });
+                    Logger.info(`[Chat Service] Saved reflection to Lorebook "${targetBookName}"`);
+                    return { success: true, lorebook: targetBookName, reflection: reflectionText };
+                } else {
+                    Logger.warn(`[Chat Service] Could not find Lorebook "${targetBookName}" to save reflection.`);
+                    return { success: false, error: 'Target lorebook not found' };
+                }
+            } else {
+                Logger.info(`[Chat Service] No reflection generated.`);
+                return { success: false, error: 'No reflection generated' };
+            }
+        } catch (err: any) {
+            Logger.error(`[Chat Service] Failed to generate/save reflection:`, err);
+            return { success: false, error: err.message };
         }
     }
 };

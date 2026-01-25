@@ -58,6 +58,7 @@ export const chatSessions = sqliteTable('chat_sessions', {
     shortTemperature: real('short_temperature'),
     longTemperature: real('long_temperature'),
     lorebooks: text('lorebooks'), // JSON string array of names (overrides character default)
+    autoplay: integer('autoplay', { mode: 'boolean' }).default(false),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

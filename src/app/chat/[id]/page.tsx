@@ -50,6 +50,7 @@ interface ChatSession {
     responseStyle?: 'short' | 'long';
     shortTemperature?: number;
     longTemperature?: number;
+    autoplay?: boolean;
 }
 
 interface Persona {
@@ -106,7 +107,9 @@ export default function ChatPage() {
     const [responseStyle, setResponseStyle] = useState<'short' | 'long'>('long');
     const [shortTemp, setShortTemp] = useState<number | undefined>(undefined);
     const [longTemp, setLongTemp] = useState<number | undefined>(undefined);
+    const [autoplay, setAutoplay] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [isReflecting, setIsReflecting] = useState(false);
 
     // Edit Modals State
     const [showCharEdit, setShowCharEdit] = useState(false);
@@ -1039,6 +1042,7 @@ export default function ChatPage() {
                 }
                 setShortTemp(data.session.shortTemperature);
                 setLongTemp(data.session.longTemperature);
+                setAutoplay(data.session.autoplay || false);
             }
         } catch (e) {
             Logger.error('Failed to load session', e);
@@ -1117,6 +1121,45 @@ export default function ChatPage() {
             } catch (e) {
                 Logger.error('Failed to save temp overrides', e);
             }
+        }
+    };
+
+    const handleAutoplayChange = async () => {
+        const newValue = !autoplay;
+        setAutoplay(newValue);
+        if (currentSessionId) {
+            try {
+                await fetch(`/api/chats/${currentSessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ autoplay: newValue })
+                });
+            } catch (e) {
+                Logger.error('Failed to save autoplay setting', e);
+            }
+        }
+    };
+
+    const handleTriggerReflection = async () => {
+        if (!currentSessionId || isReflecting) return;
+        setIsReflecting(true);
+        try {
+            const res = await fetch(`/api/chats/${currentSessionId}/reflect`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    alert('Reflection triggered successfully! Added to Lorebook: ' + data.lorebook);
+                } else {
+                    alert('Reflection completed but no new insights were saved: ' + (data.error || 'Unknown reason'));
+                }
+            } else {
+                alert('Failed to trigger reflection');
+            }
+        } catch (e) {
+            Logger.error('Reflection error', e);
+            alert('Error triggering reflection');
+        } finally {
+            setIsReflecting(false);
         }
     };
 
@@ -1396,6 +1439,13 @@ export default function ChatPage() {
             if (res.ok) {
                 const updatedMsg = await res.json();
                 setMessages(prev => prev.map(m => (m.id === messageId ? updatedMsg : m)));
+
+                // Autoplay Logic
+                if (autoplay) {
+                    setTimeout(() => {
+                        playTTS(updatedMsg.content, updatedMsg.id, 0, true);
+                    }, 500);
+                }
             }
         } catch (e) {
             Logger.error('Failed to regenerate', e);
@@ -1550,6 +1600,13 @@ export default function ChatPage() {
                 newMessages[newMessages.length - 1] = savedUserMsg;
                 return [...newMessages, assistantMsg];
             });
+
+            // Autoplay Logic
+            if (autoplay && assistantMsg) {
+                setTimeout(() => {
+                    playTTS(assistantMsg.content, assistantMsg.id);
+                }, 500);
+            }
         } catch (error) {
             Logger.error('Error sending message:', error);
             setMessages(prev => [...prev, { role: 'assistant', content: 'Error: Failed to get response.' }]);
@@ -2278,6 +2335,21 @@ export default function ChatPage() {
 
                             {/* Personas */}
                             <div className="mb-6">
+
+                                {/* Audio Settings */}
+                                <div className="mb-4 bg-gray-700 p-3 rounded flex items-center justify-between">
+                                    <label className="text-sm text-gray-200 flex items-center gap-2">
+                                        Autoplay Voice
+                                        <HelpTooltip text="Automatically generate and play TTS audio when the character replies." side="top" />
+                                    </label>
+                                    <div
+                                        onClick={handleAutoplayChange}
+                                        className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${autoplay ? 'bg-green-500' : 'bg-gray-500'}`}
+                                    >
+                                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${autoplay ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                    </div>
+                                </div>
+
                                 <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider mb-2 flex items-center gap-2">
                                     Response Style
                                     <HelpTooltip text="Controls the length and formatting of the character's responses." side="right" />
@@ -2372,6 +2444,20 @@ export default function ChatPage() {
 
                             {/* Lorebooks */}
                             <div>
+                                <div className="mb-4 flex items-center justify-between bg-gray-700 p-3 rounded">
+                                    <label className="text-sm text-gray-200 flex items-center gap-2">
+                                        Manual Reflection
+                                        <HelpTooltip text="Force the character to reflect on recent chat history and update their Lorebook." side="top" />
+                                    </label>
+                                    <button
+                                        onClick={handleTriggerReflection}
+                                        disabled={isReflecting}
+                                        className={`px-3 py-1 rounded text-xs text-white ${isReflecting ? 'bg-gray-500 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500'}`}
+                                    >
+                                        {isReflecting ? 'Reflecting...' : 'Trigger Now'}
+                                    </button>
+                                </div>
+
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="font-semibold text-gray-400 text-sm uppercase tracking-wider flex items-center gap-2">
                                         Lore Books

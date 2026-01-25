@@ -37,7 +37,7 @@ export const lorebookService = {
     },
 
     // Entry Management
-    async addEntry(lorebookId: number, data: { label?: string; content: string; keywords?: string; enabled?: boolean; isAlwaysIncluded?: boolean }) {
+    async addEntry(lorebookId: number, data: { label?: string; content: string; keywords?: string; enabled?: boolean; isAlwaysIncluded?: boolean; weight?: number }) {
         return await db.insert(lorebookEntries).values({
             lorebookId,
             ...data
