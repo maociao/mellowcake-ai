@@ -1443,7 +1443,9 @@ export default function ChatPage() {
                 // Autoplay Logic
                 if (autoplay) {
                     setTimeout(() => {
-                        playTTS(updatedMsg.content, updatedMsg.id, 0, true);
+                        // Use the new current index from the updated message
+                        const newIndex = updatedMsg.currentIndex || 0;
+                        playTTS(updatedMsg.content, updatedMsg.id, newIndex, true);
                     }, 500);
                 }
             }

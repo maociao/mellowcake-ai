@@ -171,6 +171,8 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Ensure array size
+                // Force assignment at index. If array is undefined/null it was init above.
+                // If swipeIndex is larger than length, JS fills with empty.
                 paths[swipeIndex] = relativePath;
 
                 await db.update(chatMessages)
