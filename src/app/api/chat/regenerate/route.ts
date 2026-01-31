@@ -6,7 +6,7 @@ import { llmService } from '@/services/llm-service';
 import { contextManager } from '@/lib/context-manager';
 import { memoryService } from '@/services/memory-service';
 import { lorebookService } from '@/services/lorebook-service';
-import { trimResponse } from '@/lib/text-utils';
+import { trimResponse, sanitizeQuotes } from '@/lib/text-utils';
 import { PerformanceLogger } from '@/lib/performance-logger';
 import { Logger } from '@/lib/logger';
 import { CONFIG } from '@/config';
@@ -202,6 +202,15 @@ export async function POST(request: NextRequest) {
 
         // Trim response
         responseContent = trimResponse(responseContent, trimLength || 800);
+
+        if (CONFIG.SANITIZE_QUOTES) {
+            const sanitized = sanitizeQuotes(responseContent);
+            if (sanitized !== responseContent) {
+                Logger.debug(`[Regenerate API] Sanitized quotes.`);
+                responseContent = sanitized;
+            }
+        }
+
         Logger.debug(`[Regenerate API] Trimmed response: ${responseContent}`);
 
         // 6. Add as Swipe

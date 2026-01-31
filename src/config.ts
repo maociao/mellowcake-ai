@@ -12,4 +12,5 @@ export const CONFIG = {
     LOG_LLM_PROMPTS: process.env.LOG_LLM_PROMPTS === 'true',
     LOG_COMFY_WORKFLOWS: process.env.LOG_COMFY_WORKFLOWS === 'true',
     RETAIN_CHAT_HISTORY: process.env.RETAIN_CHAT_HISTORY === 'true',
+    SANITIZE_QUOTES: process.env.SANITIZE_QUOTES === 'true',
 };

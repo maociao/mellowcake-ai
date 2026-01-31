@@ -113,3 +113,22 @@ export function stripImageCommands(text: string): string {
 
     return cleanText;
 }
+
+/**
+ * Removes double quotes from text that is NOT strictly inside asterisks (emotes).
+ * Assumes asterisks denote actions/narration.
+ * Example: *Action "quote"* "Speech" -> *Action "quote"* Speech
+ */
+export function sanitizeQuotes(text: string): string {
+    if (!text) return text;
+
+    const segments = text.split('*');
+    for (let i = 0; i < segments.length; i++) {
+        // Even indices are text outside of asterisks (Speech)
+        // Odd indices are text inside asterisks (Actions)
+        if (i % 2 === 0) {
+            segments[i] = segments[i].replace(/"/g, '');
+        }
+    }
+    return segments.join('*');
+}
