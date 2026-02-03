@@ -307,36 +307,69 @@ Summary: `;
             if (!character) throw new Error('Character not found');
 
             let userName = 'User';
+            let linkedCharacter = null;
+
             if (session.personaId) {
                 const persona = await personaService.getById(session.personaId);
-                if (persona) userName = persona.name;
+                if (persona) {
+                    userName = persona.name;
+                    // Check for Linked Character
+                    if ((persona as any).characterId && (persona as any).characterId !== character.id) {
+                        linkedCharacter = await characterService.getById((persona as any).characterId);
+                    }
+                }
             }
 
-            // Determine lorebooks: Session overrides > Character defaults
+            // --- 1. Assistant Reflection ---
+            await this.performReflection(character, userName, session.lorebooks || undefined);
+
+            // --- 2. Linked Character (Impersonated) Reflection ---
+            if (linkedCharacter) {
+                Logger.info(`[Chat Service] Triggering Linked Character Reflection for ${linkedCharacter.name} (Impersonating User)...`);
+                // For the linked character, the "User" they are talking to is the Assistant (character.name)
+                // And their "lorebooks" are their own defaults (since session lorebooks usually belong to the assistant/world)
+                await this.performReflection(linkedCharacter, character.name, undefined);
+            }
+
+            return { success: true };
+
+        } catch (err: any) {
+            Logger.error(`[Chat Service] Failed to generate/save reflection:`, err);
+            return { success: false, error: err.message };
+        }
+    },
+
+    /**
+     * Private helper to execute the reflection logic for a single entity
+     */
+    async performReflection(subjectCharacter: any, counterpartyName: string, overrideLorebooks?: string) {
+        try {
+            // Determine lorebooks
             let lorebooks: string[] = [];
-            if (session.lorebooks) {
+            if (overrideLorebooks) {
                 try {
-                    lorebooks = JSON.parse(session.lorebooks);
+                    lorebooks = JSON.parse(overrideLorebooks);
                 } catch (e) {
-                    Logger.error('[Chat Service] Failed to parse session lorebooks', e);
+                    Logger.error('[Chat Service] Failed to parse override lorebooks', e);
                 }
-            } else if (character.lorebooks) {
+            } else if (subjectCharacter.lorebooks) {
                 try {
-                    lorebooks = JSON.parse(character.lorebooks);
+                    lorebooks = JSON.parse(subjectCharacter.lorebooks);
                 } catch (e) {
                     Logger.error('[Chat Service] Failed to parse character lorebooks', e);
                 }
             }
 
             if (!lorebooks || lorebooks.length === 0) {
-                Logger.info('[Chat Service] No lorebooks linked to session. Skipping reflection.');
-                return null;
+                Logger.info(`[Chat Service] No lorebooks linked to ${subjectCharacter.name}. Skipping reflection.`);
+                return;
             }
 
-            Logger.info(`[Chat Service] Triggering Hindsight Reflection for Lorebook (Session ${sessionId})...`);
-            const reflectionQuery = `Based on the recent interaction with ${userName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
+            Logger.info(`[Chat Service] Generating reflection for ${subjectCharacter.name} (Counterparty: ${counterpartyName})...`);
 
-            const reflection = await memoryService.reflect(character.id, reflectionQuery);
+            const reflectionQuery = `Based on the recent interaction with ${counterpartyName}, reflect on any changes in my opinions about people, places, or perspectives. Have I learned anything new that changes my worldview or relationships? Summarize these insights specifically for my long-term memory using third person perspective.`;
+
+            const reflection = await memoryService.reflect(subjectCharacter.id, reflectionQuery);
 
             let reflectionText: string | null = null;
             if (reflection) {
@@ -349,7 +382,7 @@ Summary: `;
             }
 
             if (reflectionText) {
-                Logger.info(`[Chat Service] Reflection generated. Extracting keywords via LLM...`);
+                Logger.info(`[Chat Service] Reflection generated for ${subjectCharacter.name}. Extracting keywords...`);
 
                 // Separate Low-Temp Call for Keywords
                 let keywords: string[] = ['summary', 'reflection', 'memory'];
@@ -369,12 +402,12 @@ Summary: `;
                     if (extracted.length > 0) {
                         keywords = [...keywords, ...extracted];
                     }
-                    Logger.debug(`[Chat Service] Extracted keywords: ${keywords.join(', ')}`);
                 } catch (tagErr) {
                     Logger.warn(`[Chat Service] Failed to extract keywords, using defaults.`, tagErr);
                 }
 
                 // Target the first available Lorebook (usually the primary one)
+                // Use the FIRST lorebook in the list.
                 const targetBookName = lorebooks[0];
                 const targetBook = await lorebookService.getByName(targetBookName);
 
@@ -387,19 +420,15 @@ Summary: `;
                         enabled: true,
                         isAlwaysIncluded: false // Let it be dynamic
                     });
-                    Logger.info(`[Chat Service] Saved reflection to Lorebook "${targetBookName}"`);
-                    return { success: true, lorebook: targetBookName, reflection: reflectionText };
+                    Logger.info(`[Chat Service] Saved reflection to Lorebook "${targetBookName}" for ${subjectCharacter.name}`);
                 } else {
                     Logger.warn(`[Chat Service] Could not find Lorebook "${targetBookName}" to save reflection.`);
-                    return { success: false, error: 'Target lorebook not found' };
                 }
             } else {
-                Logger.info(`[Chat Service] No reflection generated.`);
-                return { success: false, error: 'No reflection generated' };
+                Logger.info(`[Chat Service] No reflection generated for ${subjectCharacter.name}.`);
             }
-        } catch (err: any) {
-            Logger.error(`[Chat Service] Failed to generate/save reflection:`, err);
-            return { success: false, error: err.message };
+        } catch (err) {
+            Logger.error(`[Chat Service] Error reflecting for ${subjectCharacter.name}:`, err);
         }
     }
 };
