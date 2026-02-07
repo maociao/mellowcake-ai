@@ -16,14 +16,14 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { sessionId, content, model, personaId, lorebooks, options, trimLength, performanceLogging } = body;
+        const { sessionId, content, model, personaId, lorebooks, options, trimLength } = body;
 
         if (!sessionId || !content) {
             return new NextResponse('Missing sessionId or content', { status: 400 });
         }
 
         // Initialize Logger
-        logger = new PerformanceLogger(sessionId, model || 'default', performanceLogging);
+        logger = new PerformanceLogger(sessionId, model || 'default');
         logger.startTimer('total');
         logger.startTimer('preprocessing');
 

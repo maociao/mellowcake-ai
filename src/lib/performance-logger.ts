@@ -50,8 +50,8 @@ export class PerformanceLogger {
     private enabled: boolean;
     private logPath: string;
 
-    constructor(sessionId: string, model: string, enabled: boolean = false) {
-        this.enabled = enabled;
+    constructor(sessionId: string, model: string) {
+        this.enabled = process.env.PERFORMANCE_LOGGING === 'true';
         this.timers = new Map();
         this.logPath = path.join(process.cwd(), 'performance.log');
         this.logs = {

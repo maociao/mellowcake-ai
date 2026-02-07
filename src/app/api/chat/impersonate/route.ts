@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { sessionId, personaId, options, trimLength, performanceLogging } = body;
+        const { sessionId, personaId, options, trimLength } = body;
 
         if (!sessionId) {
             return new NextResponse('Missing sessionId', { status: 400 });
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
         // Initialize Logger
         // Note: Model is determined later, so we update it later or pass 'default'
-        logger = new PerformanceLogger(sessionId, 'default', performanceLogging);
+        logger = new PerformanceLogger(sessionId, 'default');
         logger.startTimer('total');
         logger.startTimer('preprocessing');
 

@@ -20,14 +20,14 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { messageId, options, trimLength, personaId, lorebooks: lorebooksOverride, performanceLogging } = body;
+        const { messageId, options, trimLength, personaId, lorebooks: lorebooksOverride } = body;
 
         if (!messageId) {
             return new NextResponse('Missing messageId', { status: 400 });
         }
 
         // Initialize Logger
-        logger = new PerformanceLogger('unknown', 'default', performanceLogging);
+        logger = new PerformanceLogger('unknown', 'default');
         logger.startTimer('total');
         logger.startTimer('preprocessing');
 

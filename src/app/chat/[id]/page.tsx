@@ -97,7 +97,7 @@ export default function ChatPage() {
     const [editSessionName, setEditSessionName] = useState('');
 
     // LLM Settings
-    const { temperature, top_p, top_k, min_p, num_predict, trimLength, defaultShortTemperature, defaultLongTemperature, performanceLogging, updateSettings } = useSettingsStore();
+    const { temperature, top_p, top_k, min_p, num_predict, trimLength, defaultShortTemperature, defaultLongTemperature, updateSettings } = useSettingsStore();
 
     // Settings State
     const [personas, setPersonas] = useState<Persona[]>([]);
@@ -1432,8 +1432,7 @@ export default function ChatPage() {
                     lorebooks: selectedLorebooks,
                     personaId: selectedPersonaId,
                     options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
-                    trimLength,
-                    performanceLogging
+                    trimLength
                 })
             });
             if (res.ok) {
@@ -1586,8 +1585,7 @@ export default function ChatPage() {
                         min_p,
                         num_predict
                     },
-                    trimLength,
-                    performanceLogging
+                    trimLength
                 }),
             });
 
@@ -1712,8 +1710,7 @@ export default function ChatPage() {
                     sessionId: currentSessionId,
                     personaId: selectedPersonaId,
                     options: { temperature: effectiveTemp, top_p, top_k, min_p, num_predict },
-                    trimLength,
-                    performanceLogging
+                    trimLength
                 })
             });
             if (res.ok) {

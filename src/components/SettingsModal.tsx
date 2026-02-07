@@ -11,6 +11,25 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const settings = useSettingsStore();
+    const [services, setServices] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetch('/api/services/status')
+                .then(res => res.json())
+                .then(data => setServices(data.services))
+                .catch(err => {
+                    console.error('Failed to fetch status:', err);
+                    setServices([
+                        { name: 'Mellowcake AI', status: 'offline' },
+                        { name: 'Ollama', status: 'offline' },
+                        { name: 'Hindsight', status: 'offline' },
+                        { name: 'F5-TTS', status: 'offline' },
+                        { name: 'ComfyUI', status: 'offline' }
+                    ]);
+                });
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -19,8 +38,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-bold text-white">LLM Tuning</h2>
-                        <HelpTooltip text="Configure advanced language model parameters to control creativity and response style." side="right" />
+                        <h2 className="text-xl font-bold text-white">Settings & Status</h2>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -30,9 +48,36 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="space-y-6">
+                    {/* Service Status */}
+                    <div className="p-4 bg-gray-700/50 rounded-lg space-y-3">
+                        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">System Status</h3>
+                        <div className="space-y-2">
+                            {services.map((service) => (
+                                <div key={service.name} className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-300">{service.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${service.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        <span className={`text-xs ${service.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>
+                                            {service.status === 'online' ? 'Online' : 'Offline'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                            {services.length === 0 && (
+                                <div className="text-center text-xs text-gray-500 py-2">Loading status...</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <hr className="border-gray-700" />
+
                     {/* Global Generation Defaults */}
                     <div className="p-4 bg-gray-700/50 rounded-lg space-y-4">
-                        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Global Defaults</h3>
+                        <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">LLM Parameters</h3>
+                            <HelpTooltip text="Configure advanced language model parameters to control creativity and response style." />
+                        </div>
+
                         {/* Global Short Temp */}
                         <div>
                             <div className="flex justify-between mb-1">
@@ -73,26 +118,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             />
                         </div>
                     </div>
-
-                    {/* Performance Logging */}
-                    <div className="p-4 bg-gray-700/50 rounded-lg flex justify-between items-center">
-                        <div>
-                            <span className="text-sm font-bold text-gray-300 uppercase tracking-wider block">Performance Log</span>
-                            <span className="text-xs text-gray-500">Log detailed metrics to performance.log</span>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={settings.performanceLogging ?? false}
-                                onChange={(e) => settings.updateSettings({ performanceLogging: e.target.checked })}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                    </div>
-
-
-                    <hr className="border-gray-700" />
 
                     {/* Temperature */}
                     <div>

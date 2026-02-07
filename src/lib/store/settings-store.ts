@@ -10,7 +10,6 @@ interface LLMSettings {
     trimLength: number;
     defaultShortTemperature: number;
     defaultLongTemperature: number;
-    performanceLogging: boolean;
 }
 
 interface SettingsState extends LLMSettings {
@@ -27,7 +26,6 @@ const DEFAULT_SETTINGS: LLMSettings = {
     trimLength: 800, // Characters, roughly 200 tokens
     defaultShortTemperature: 0.7,
     defaultLongTemperature: 1.12,
-    performanceLogging: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
