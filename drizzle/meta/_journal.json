@@ -71,6 +71,13 @@
       "when": 1769310390118,
       "tag": "0009_eminent_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1770683746380,
+      "tag": "0010_careless_firelord",
+      "breakpoints": true
     }
   ]
 }

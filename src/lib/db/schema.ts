@@ -18,6 +18,7 @@ export const characters = sqliteTable('characters', {
     appearance: text('appearance'),
     avatarPath: text('avatar_path'),
     firstMessage: text('first_message'),
+    autoGenerateIntro: integer('auto_generate_intro', { mode: 'boolean' }).default(false),
     personality: text('personality').notNull(),
     scenario: text('scenario'),
     systemPrompt: text('system_prompt'),

@@ -20,12 +20,56 @@ export const chatService = {
 
         if (includeFirstMessage) {
             const character = await characterService.getById(characterId);
-            if (character && character.firstMessage) {
-                await this.addMessage(session.id, 'assistant', character.firstMessage, undefined, character.name);
+            if (character) {
+                let initialMessage = character.firstMessage;
+
+                if ((character as any).autoGenerateIntro) { // Cast as any until types are fully updated everywhere
+                    initialMessage = await this.generateIntroMessage(character, personaId);
+                }
+
+                if (initialMessage) {
+                    await this.addMessage(session.id, 'assistant', initialMessage, undefined, character.name);
+                }
             }
         }
 
         return [session];
+    },
+
+    async generateIntroMessage(character: any, personaId?: number): Promise<string> {
+        try {
+            let userName = 'User';
+            let contextMemories = '';
+
+            if (personaId) {
+                const persona = await personaService.getById(personaId);
+                if (persona) {
+                    userName = persona.name;
+                    // Fetch memories relevant to this persona
+                    const searchResult = await memoryService.searchMemories(character.id, userName, 5);
+                    if (searchResult && searchResult.memories.length > 0) {
+                        contextMemories = searchResult.memories.map((m: any) => `- ${m.content}`).join('\n');
+                    }
+                }
+            }
+
+            const prompt = `You are ${character.name}.
+Description: ${character.description}
+Personality: ${character.personality}
+Scenario: ${character.scenario || 'You are starting a conversation.'}
+
+You are beginning a new chat with ${userName}.
+${contextMemories ? `Here are some things you remember about ${userName}:\n${contextMemories}` : ''}
+
+Task: Write an engaging opening message to start this conversation. Be true to your personality and the current scenario. Use ${userName}'s name if appropriate. Keep it to 1-2 sentences.`;
+
+            const response = await llmService.chat(CONFIG.OLLAMA_CHAT_MODEL, [{ role: 'system', content: prompt }]);
+            return response || character.firstMessage || `Hello ${userName}.`; // Fallback
+
+        } catch (error) {
+            Logger.error('Failed to auto-generate intro message:', error);
+            return character.firstMessage || 'Hello.';
+        }
     },
 
     async updateSession(id: number, data: { name?: string; personaId?: number; lorebooks?: string[]; responseStyle?: 'short' | 'long'; shortTemperature?: number; longTemperature?: number; autoplay?: boolean }) {

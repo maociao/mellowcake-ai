@@ -1,0 +1,1 @@
+ALTER TABLE `characters` ADD `auto_generate_intro` integer DEFAULT false;

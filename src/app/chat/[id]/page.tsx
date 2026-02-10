@@ -40,6 +40,7 @@ interface CharacterDetails {
     voiceSpeed?: number;
     voiceId?: number;
     voice?: { id: number, name: string, filePath: string }; // If joined
+    autoGenerateIntro?: boolean;
 }
 
 interface ChatSession {
@@ -119,6 +120,7 @@ export default function ChatPage() {
     const [editDescription, setEditDescription] = useState('');
     const [editScenario, setEditScenario] = useState('');
     const [editFirstMessage, setEditFirstMessage] = useState('');
+    const [editAutoGenerateIntro, setEditAutoGenerateIntro] = useState(false);
     const [showPersonaEdit, setShowPersonaEdit] = useState<Persona | 'new' | null>(null);
     const [editPersonaAvatar, setEditPersonaAvatar] = useState<string | null>(null); // New state for Persona Avatar Helper
     const [showLorebookManage, setShowLorebookManage] = useState(false);
@@ -1216,6 +1218,8 @@ export default function ChatPage() {
         const lorebooks = formData.getAll('lorebooks') as string[];
         const updates: any = Object.fromEntries(formData.entries());
         updates.lorebooks = lorebooks; // Override the single value from Object.fromEntries
+        updates.autoGenerateIntro = formData.get('autoGenerateIntro') === 'on';
+
 
         try {
             const res = await fetch(`/api/characters/${character.id}`, {
@@ -2057,6 +2061,7 @@ export default function ChatPage() {
             setEditDescription(character.description || '');
             setEditScenario(character.scenario || '');
             setEditFirstMessage(character.firstMessage || '');
+            setEditAutoGenerateIntro(character.autoGenerateIntro || false);
         }
     }, [showCharEdit, character]);
 
@@ -2267,7 +2272,26 @@ export default function ChatPage() {
                                         onChange={(e) => setEditFirstMessage(e.target.value)}
                                         rows={4}
                                         className="w-full bg-gray-700 rounded p-2 text-white font-mono text-sm"
+                                        disabled={editAutoGenerateIntro}
                                     />
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <input
+                                            type="checkbox"
+                                            id="editAutoGenerate"
+                                            name="autoGenerateIntro"
+                                            checked={editAutoGenerateIntro}
+                                            onChange={(e) => setEditAutoGenerateIntro(e.target.checked)}
+                                            className="rounded bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <label htmlFor="editAutoGenerate" className="text-sm text-gray-400 cursor-pointer select-none">
+                                            Auto-generate first message using memory
+                                        </label>
+                                    </div>
+                                    {editAutoGenerateIntro && (
+                                        <p className="text-xs text-gray-500 mt-1 italic">
+                                            Overrides the static First Message. Generated at start of each chat.
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Default Lorebooks */}

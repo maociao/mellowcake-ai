@@ -60,6 +60,20 @@ export async function POST(request: NextRequest) {
 
         if (targetIndex === -1) return new NextResponse('Message not in history', { status: 500 });
 
+        // Special handling for First Message (Intro)
+        if (targetIndex === 0 && (character as any).autoGenerateIntro) {
+            Logger.info(`[Regenerate API] Regenerating Intro Message for ${messageId}`);
+            const newContent = await chatService.generateIntroMessage(character, activePersonaId);
+
+            Logger.debug(`[Regenerate API] Adding swipe to message ${messageId}`);
+            const updatedMessages = await chatService.addSwipe(messageId, newContent);
+
+            if (!updatedMessages) {
+                return new NextResponse('Failed to update message', { status: 500 });
+            }
+            return NextResponse.json(updatedMessages[0]);
+        }
+
         // History for context is everything before the target message
         const history = allMessages.slice(0, targetIndex);
 

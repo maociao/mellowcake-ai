@@ -102,7 +102,10 @@ export async function POST(request: NextRequest) {
             Logger.error('Failed to create default lorebook', e);
         }
 
-        const character = await characterService.create(body);
+        const character = await characterService.create({
+            ...body,
+            autoGenerateIntro: body.autoGenerateIntro
+        });
 
         // Ensure Memory Bank is created/configured
         try {
